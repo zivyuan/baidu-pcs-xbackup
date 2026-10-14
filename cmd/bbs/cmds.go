@@ -84,6 +84,7 @@ func cmdRun(args []string) error {
 	if err := eng.Pan.EnsureToken(); err != nil {
 		return err
 	}
+	writeReadmes(eng, cfg, log)
 	date := time.Now().Format("20060102")
 	failed := false
 	matched := 0
@@ -127,7 +128,20 @@ func cmdDaemon(args []string) error {
 	if err := eng.Pan.EnsureToken(); err != nil {
 		return err
 	}
+	writeReadmes(eng, cfg, log) // daemon 启动时写一次;配置改描述需重启
 	return scheduler.Run(cfg, eng, log)
+}
+
+// writeReadmes 生成应用/项目 README(失败仅记日志,不阻塞备份)。
+func writeReadmes(eng *backup.Engine, cfg *config.Config, log *slog.Logger) {
+	if err := eng.WriteAppReadme(cfg.AppName, cfg.AppDescription); err != nil {
+		log.Error("应用 README 写入失败", "err", err)
+	}
+	for i := range cfg.Projects {
+		if err := eng.WriteProjectReadme(cfg.Projects[i]); err != nil {
+			log.Error("项目 README 写入失败", "项目", cfg.Projects[i].ID, "err", err)
+		}
+	}
 }
 
 func cmdService(args []string) error {

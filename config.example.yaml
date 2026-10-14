@@ -1,11 +1,13 @@
 app_key: "你的AppKey"
 secret_key: "你的SecretKey"
 app_name: "你的应用名称"           # remote_root 为空时必填(无默认值,缺失直接报错),上传根目录为 /apps/<app_name>
+app_description: "自动备份各项目的发布产物"  # 可选,写入应用根目录 README.md
 access_token_file: "~/.bbs/token.json"
 remote_root: ""                   # 留空 = /apps/<app_name>;也可填 /apps/xxx 指定其它目录
 log_file: ""                      # daemon 模式默认 ./bbs.log
 projects:
   - id: davidoff                  # 项目 id/任务名支持中文、空格等网盘合法目录名
+    description: "Davidoff 项目数据备份"  # 可选,写入项目目录 README.md
     tasks:
       - name: realdata
         source: /data/realdata

@@ -19,14 +19,16 @@ type Task struct {
 }
 
 type Project struct {
-	ID    string `yaml:"id"`
-	Tasks []Task `yaml:"tasks"`
+	ID          string `yaml:"id"`
+	Description string `yaml:"description"` // 写入项目目录 README.md,便于在网盘里了解用途
+	Tasks       []Task `yaml:"tasks"`
 }
 
 type Config struct {
 	AppKey          string    `yaml:"app_key"`
 	SecretKey       string    `yaml:"secret_key"`
 	AppName         string    `yaml:"app_name"`
+	AppDescription  string    `yaml:"app_description"` // 写入应用目录 README.md
 	AccessTokenFile string    `yaml:"access_token_file"`
 	RemoteRoot      string    `yaml:"remote_root"`
 	LogFile         string    `yaml:"log_file"`

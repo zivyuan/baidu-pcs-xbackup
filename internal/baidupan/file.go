@@ -17,11 +17,15 @@ type Entry struct {
 }
 
 // MkdirAll 逐级创建远端目录(errno -8 已存在视为成功)。
+// "/apps" 是保留容器目录,应用无权创建也无需创建,直接跳过。
 func (c *Client) MkdirAll(remoteDir string) error {
 	parts := strings.Split(strings.Trim(remoteDir, "/"), "/")
 	cur := ""
 	for _, p := range parts {
 		cur += "/" + p
+		if cur == "/apps" {
+			continue // 保留目录,不可创建,必然已存在
+		}
 		form := url.Values{
 			"path":  {cur},
 			"isdir": {"1"},

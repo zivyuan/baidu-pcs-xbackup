@@ -5,7 +5,7 @@ access_token_file: "~/.bbs/token.json"
 remote_root: ""                   # 留空 = /apps/<app_name>;也可填 /apps/xxx 指定其它目录
 log_file: ""                      # daemon 模式默认 ./bbs.log
 projects:
-  - id: davidoff
+  - id: davidoff                  # 项目 id/任务名支持中文、空格等网盘合法目录名
     tasks:
       - name: realdata
         source: /data/realdata

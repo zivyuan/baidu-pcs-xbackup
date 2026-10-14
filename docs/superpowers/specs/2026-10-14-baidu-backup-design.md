@@ -61,7 +61,7 @@ projects:
         daily_at: "03:00"                # 每日执行时刻,daemon 用;run 模式忽略
 ```
 
-校验规则:项目 id/任务名仅 `[A-Za-z0-9_-]`;retention ≥ 1;mode ∈ {archive, raw};daily_at 为 24 小时制 HH:MM。
+校验规则:项目 id/任务名为网盘合法目录名(允许中文、空格、符号,禁止 `/` `\`、控制字符、`.`/`..`、空名与超 255 字节);retention ≥ 1;mode ∈ {archive, raw};daily_at 为 24 小时制 HH:MM。
 
 ## 认证
 

@@ -9,7 +9,7 @@
 - 远端目录结构:`/<远程根目录>/<项目id>/<YYYYMMDD>/<任务名>`,如 `davidoff/20261014/realdata`。
 - 一个项目包含多个任务;备份频率最高每天一次,日期目录名即 `YYYYMMDD`。
 - 保留份数按任务设置,清理以日期目录为粒度。
-- 单二进制(Go)部署,支持 macOS 与 Windows(含 Cygwin 环境、Windows Server)。
+- 单二进制(Go)部署,支持 macOS、Windows(含 Cygwin 环境、Windows Server)、Linux(Ubuntu、CentOS、Linux Mint)。
 - 不自动编写测试用例,验收方式见文末。
 
 ### 非目标
@@ -109,9 +109,12 @@ bbs service install|uninstall|start|stop        # 仅 Windows:注册/管理服�
 bbs version
 ```
 
-## Windows / Cygwin 兼容
+## 跨平台兼容(macOS / Windows / Linux)
 
-- 纯 Go 标准库,无 cgo:`GOOS=windows GOARCH=amd64 go build` 产出单 exe,Win10 ~ Server 2022 通用。
+- 纯 Go 标准库,无 cgo,静态编译(`CGO_ENABLED=0`),各平台产物均为单文件、零运行时依赖。
+- **Linux(Ubuntu / CentOS / Linux Mint)**:同一份 `linux/amd64` 产物通用(另出 `linux/arm64`);静态链接不依赖 glibc 版本,CentOS 7 等老发行版可直接运行。daemon 自启动用 systemd(随文档提供 unit 示例),单次模式用 cron。
+- **macOS**:`darwin/arm64` 与 `darwin/amd64`;daemon 自启动用 launchd,单次模式用 cron/launchd。
+- **Windows / Cygwin**:`GOOS=windows GOARCH=amd64 go build` 产出单 exe,Win10 ~ Server 2022 通用。
 - 产物为原生 PE 二进制,不依赖 cygwin1.dll,可在 Cygwin shell 直接运行。
 - 路径规范化:配置与参数中出现 `/cygdrive/<盘符>/...` 时自动转为 `<盘符>:\...`;其余按原样处理。macOS/Windows 路径均可。
 - `~` 展开基于 `os.UserHomeDir()`(Windows 下为用户目录)。
@@ -128,7 +131,7 @@ bbs version
 
 ## 发布
 
-Makefile 三个目标:`build-darwin`(arm64/amd64)、`build-windows`(amd64)、`release`(打包 zip/tar.gz 到 dist/)。
+Makefile 目标:`build-darwin`(arm64/amd64)、`build-linux`(amd64/arm64)、`build-windows`(amd64)、`release`(按平台打包 zip/tar.gz 到 dist/)。
 
 ## 验收方式
 
@@ -138,3 +141,4 @@ Makefile 三个目标:`build-darwin`(arm64/amd64)、`build-windows`(amd64)、`re
 4. 将 retention 临时设为 1,连续两天备份后确认最旧日期目录被清理。
 5. `bbs daemon` 前台运行,把某任务 daily_at 设为 2 分钟后,验证到点自动执行。
 6. Windows:交叉编译 exe,在 Cygwin shell 与 cmd 各跑一次 `bbs run`;`bbs service install` 后在 services.msc 确认服务运行并完成一次备份。
+7. Linux(Ubuntu/CentOS/Mint 任一):`linux/amd64` 产物直接运行 `bbs run` 与 `bbs daemon` 前台模式,systemd unit 拉起 daemon 验证常驻。

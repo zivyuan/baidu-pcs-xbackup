@@ -47,8 +47,9 @@ baidu-backup-store/
 ```yaml
 app_key: "xxx"
 secret_key: "xxx"
+app_name: "我的备份应用"                   # remote_root 为空时必填
 access_token_file: "~/.bbs/token.json"   # 0600 权限
-remote_root: ""                          # 空 = /apps/<应用名>
+remote_root: ""                          # 空 = /apps/<app_name,此时 app_name 必填>
 log_file: ""                             # daemon 模式默认 ./bbs.log,可覆盖
 projects:
   - id: davidoff

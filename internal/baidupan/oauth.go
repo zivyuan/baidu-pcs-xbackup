@@ -135,14 +135,14 @@ func (c *Client) Login() error {
 		}
 		return c.saveToken(t)
 	}
-	return fmt.Errorf("授权超时,请重试 bbs login")
+	return fmt.Errorf("授权超时,请重试 bpxup login")
 }
 
 // EnsureToken 保证持有有效 access_token,过期自动刷新。
 func (c *Client) EnsureToken() error {
 	t, err := c.loadToken()
 	if err != nil {
-		return fmt.Errorf("未找到 token,请先执行 bbs login: %w", err)
+		return fmt.Errorf("未找到 token,请先执行 bpxup login: %w", err)
 	}
 	if time.Now().Unix() < t.ExpiresAt {
 		return nil
@@ -167,7 +167,7 @@ func (c *Client) EnsureToken() error {
 	}
 	json.NewDecoder(resp.Body).Decode(&tk)
 	if tk.AccessToken == "" {
-		return fmt.Errorf("刷新 token 失败(%s),请重新 bbs login", tk.ErrorDesc)
+		return fmt.Errorf("刷新 token 失败(%s),请重新 bpxup login", tk.ErrorDesc)
 	}
 	return c.saveToken(&Token{
 		AccessToken:  tk.AccessToken,

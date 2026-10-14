@@ -44,7 +44,7 @@ func loadConfig(fs *flag.FlagSet) *config.Config {
 func newEngine(cfg *config.Config, log *slog.Logger) *backup.Engine {
 	pan := baidupan.New(cfg.AppKey, cfg.SecretKey, cfg.AccessTokenFile)
 	eng := backup.New(pan, cfg.Root(), log)
-	// 机器识别码与 token 同目录(默认 ~/.bbs/fingerprint)
+	// 机器识别码与 token 同目录(默认 ~/.bpxup/fingerprint)
 	eng.FingerprintFile = filepath.Join(filepath.Dir(cfg.AccessTokenFile), "fingerprint")
 	return eng
 }
@@ -54,7 +54,7 @@ func setupLogger(cfg *config.Config, daemon bool) *slog.Logger {
 	if daemon {
 		path := cfg.LogFile
 		if path == "" {
-			path = "bbs.log"
+			path = "bpxup.log"
 		}
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {

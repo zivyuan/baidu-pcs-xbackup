@@ -83,7 +83,7 @@ func (e *Engine) RunTask(p config.Project, t config.Task, date string) error {
 	}
 	switch t.Mode {
 	case "archive":
-		tmp, err := os.CreateTemp("", "bbs-*.tar.gz")
+		tmp, err := os.CreateTemp("", "bpxup-*.tar.gz")
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,7 @@ func (e *Engine) runRaw(p config.Project, t config.Task, dir string) error {
 
 // markSuccess 在任务目录(仅 raw 模式调用)上传完成标志。
 func (e *Engine) markSuccess(taskDir string) error {
-	tmp, err := os.CreateTemp("", "bbs-success-*")
+	tmp, err := os.CreateTemp("", "bpxup-success-*")
 	if err != nil {
 		return err
 	}

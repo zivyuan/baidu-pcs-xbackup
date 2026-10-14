@@ -1,4 +1,4 @@
-# baidu-pcs-xbackup(bbs)- 百度网盘自动备份工具
+# baidu-pcs-xbackup(bpxup)- 百度网盘自动备份工具
 
 基于百度网盘官方开放平台 API 的定时备份工具。Go 静态编译,单文件部署,支持 macOS、Linux(Ubuntu/CentOS/Mint 等)、Windows(含 Cygwin、Windows Server)。
 
@@ -8,9 +8,9 @@
 - 两种备份形态:`archive`(打包 tar.gz 上传)/ `raw`(原样递归上传)
 - 备份频率最高每天一次,远端目录结构:`<根目录>/<项目id>/<YYYYMMDD>/<任务名>`
 - 按任务保留最近 N 份,过期日期目录自动整体删除
-- 任务防冲突:项目目录下 `<任务名>.fingerprint` 记录机器识别码(本地 `~/.bbs/fingerprint`),识别码不一致(其他机器同项目同任务)时拒绝执行
+- 任务防冲突:项目目录下 `<任务名>.fingerprint` 记录机器识别码(本地 `~/.bpxup/fingerprint`),识别码不一致(其他机器同项目同任务)时拒绝执行
 - 幂等:当日已备份则跳过,cron / Task Scheduler / daemon 混跑安全
-- 常驻模式(`bbs daemon`),Windows 上可注册为系统服务(故障自动重启)
+- 常驻模式(`bpxup daemon`),Windows 上可注册为系统服务(故障自动重启)
 
 ## 配置
 
@@ -20,8 +20,8 @@
 app_key: "你的AppKey"
 secret_key: "你的SecretKey"
 app_name: "项目数据备份"           # 备份根目录名(建在网盘根下);留空 = /apps
-access_token_file: "~/.bbs/token.json"
-log_file: ""                      # daemon 模式默认 ./bbs.log
+access_token_file: "~/.bpxup/token.json"
+log_file: ""                      # daemon 模式默认 ./bpxup.log
 projects:
   - id: davidoff
     tasks:
@@ -36,13 +36,13 @@ projects:
 
 ```bash
 # 1. 首次授权(OAuth 设备码,浏览器确认一次,之后自动续期)
-./bbs login --config config.yaml
+./bpxup login --config config.yaml
 
 # 2. 单次执行(适合 cron / Task Scheduler)
-./bbs run --config config.yaml [--project davidoff] [--task realdata]
+./bpxup run --config config.yaml [--project davidoff] [--task realdata]
 
 # 3. 常驻调度
-./bbs daemon --config config.yaml
+./bpxup daemon --config config.yaml
 ```
 
 配置路径优先级:`--config` 参数 > `BBS_CONFIG` 环境变量 > `./config.yaml`。
@@ -53,19 +53,19 @@ daemon 启动后不感知配置变化,改配置需重启进程。
 ### cron(macOS / Linux,单次模式)
 
 ```cron
-0 3 * * * /usr/local/bin/bbs run --config /etc/bbs/config.yaml
+0 3 * * * /usr/local/bin/bpxup run --config /etc/bpxup/config.yaml
 ```
 
 ### systemd(Linux,daemon 模式)
 
 ```ini
-# /etc/systemd/system/bbs.service
+# /etc/systemd/system/bpxup.service
 [Unit]
-Description=bbs 百度网盘备份守护进程
+Description=bpxup 百度网盘备份守护进程
 After=network-online.target
 
 [Service]
-ExecStart=/usr/local/bin/bbs daemon --config /etc/bbs/config.yaml
+ExecStart=/usr/local/bin/bpxup daemon --config /etc/bpxup/config.yaml
 Restart=always
 RestartSec=30
 
@@ -74,28 +74,28 @@ WantedBy=multi-user.target
 ```
 
 ```bash
-systemctl daemon-reload && systemctl enable --now bbs
+systemctl daemon-reload && systemctl enable --now bpxup
 ```
 
 ### launchd(macOS,daemon 模式)
 
-写一个 plist(`ProgramArguments` 为 `bbs daemon --config ...`),`launchctl load` 加载。
+写一个 plist(`ProgramArguments` 为 `bpxup daemon --config ...`),`launchctl load` 加载。
 
 ### Windows(daemon 注册为系统服务)
 
 管理员权限执行:
 
 ```bat
-bbs service install --config C:\bbs\config.yaml
-bbs service start
+bpxup service install --config C:\bpxup\config.yaml
+bpxup service start
 ```
 
-服务名 `bbs`,开机自启,崩溃自动重启(30s/30s/60s)。也可在 services.msc 中管理。
-卸载:`bbs service stop && bbs service uninstall`。
+服务名 `bpxup`,开机自启,崩溃自动重启(30s/30s/60s)。也可在 services.msc 中管理。
+卸载:`bpxup service stop && bpxup service uninstall`。
 
 **重要**:服务以 LocalSystem 身份运行,与用户账户隔离——
 - `access_token_file` 与 `log_file` 必须写**绝对路径**(不要 `~`、不要相对路径),且 LocalSystem 可访问;
-- 在用户账户下 `bbs login` 生成的 token 文件,需复制到服务可读的位置(或直接把服务配置指向该绝对路径)。
+- 在用户账户下 `bpxup login` 生成的 token 文件,需复制到服务可读的位置(或直接把服务配置指向该绝对路径)。
 
 ## Cygwin 说明
 
@@ -113,5 +113,5 @@ make release  # dist + 打包压缩
 ## 注意事项
 
 - 目录结构:`/<app_name>/<项目id>/<日期>/<任务名>`;`app_name` 留空则用 `/apps`,显式配置 `remote_root` 时优先。
-- access_token 约 30 天过期,工具自动用 refresh_token 续期;refresh_token 失效时重新 `bbs login`。
+- access_token 约 30 天过期,工具自动用 refresh_token 续期;refresh_token 失效时重新 `bpxup login`。
 - 日志为结构化文本,token 与 secret 永不写入日志。

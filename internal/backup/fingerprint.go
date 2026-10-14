@@ -71,7 +71,7 @@ func (e *Engine) ensureFingerprint(p config.Project, t config.Task) error {
 	if err := e.ensureDir(projDir); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp("", "bbs-fp-*")
+	tmp, err := os.CreateTemp("", "bpxup-fp-*")
 	if err != nil {
 		return err
 	}

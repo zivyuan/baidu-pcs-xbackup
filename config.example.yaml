@@ -1,9 +1,9 @@
 app_key: "你的AppKey"
 secret_key: "你的SecretKey"
 app_name: "项目数据备份"           # 备份根目录名(建在网盘根下);留空 = /apps
-access_token_file: "~/.bbs/token.json"
+access_token_file: "~/.bpxup/token.json"
 remote_root: ""                   # 显式指定备份根目录时优先于 app_name,一般留空即可
-log_file: ""                      # daemon 模式默认 ./bbs.log
+log_file: ""                      # daemon 模式默认 ./bpxup.log
 projects:
   - id: davidoff                  # 项目 id/任务名支持中文、空格等网盘合法目录名,规则相同
     tasks:

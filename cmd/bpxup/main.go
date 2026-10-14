@@ -8,10 +8,10 @@ import (
 var version = "0.1.0"
 
 func usage() {
-	fmt.Fprintf(os.Stderr, `bbs - 百度网盘自动备份工具
+	fmt.Fprintf(os.Stderr, `bpxup - 百度网盘自动备份工具
 
 用法:
-  bbs <命令> [参数]
+  bpxup <命令> [参数]
 
 命令:
   login                     设备码授权,获取并保存 token
@@ -33,7 +33,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "version":
-		fmt.Println("bbs", version)
+		fmt.Println("bpxup", version)
 	case "login":
 		err = cmdLogin(os.Args[2:])
 	case "run":

@@ -122,7 +122,7 @@ func Load(path string) (*Config, error) {
 		}
 	}
 	if c.AccessTokenFile == "" {
-		c.AccessTokenFile = "~/.bbs/token.json"
+		c.AccessTokenFile = "~/.bpxup/token.json"
 	}
 	c.AccessTokenFile = NormalizePath(c.AccessTokenFile)
 	c.LogFile = NormalizePath(c.LogFile)

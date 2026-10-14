@@ -3,27 +3,10 @@ package backup
 import (
 	"fmt"
 	"os"
-	"path"
 	"strings"
 
 	"github.com/zivyuan/baidu-backup-store/internal/config"
 )
-
-// WriteAppReadme 在应用根目录生成 README.md(未配置 app_description 则跳过)。
-func (e *Engine) WriteAppReadme(appName, desc string) error {
-	if desc == "" {
-		return nil
-	}
-	title := appName
-	if title == "" {
-		title = path.Base(e.Root) // remote_root 自定义时取末段作为标题
-	}
-	content := fmt.Sprintf(
-		"# %s\n\n%s\n\n本目录由 bbs(baidu-backup-store)自动备份工具管理。\n\n"+
-			"目录结构:`/<项目id>/<YYYYMMDD>/<任务名>`,每个任务按配置保留最近 N 份历史备份。\n",
-		title, desc)
-	return e.uploadReadme(e.Root, content)
-}
 
 // WriteProjectReadme 在项目目录生成 README.md,含各任务说明(未配置 description 则跳过)。
 func (e *Engine) WriteProjectReadme(p config.Project) error {

@@ -27,10 +27,8 @@ type Project struct {
 type Config struct {
 	AppKey          string    `yaml:"app_key"`
 	SecretKey       string    `yaml:"secret_key"`
-	AppName         string    `yaml:"app_name"`
-	AppDescription  string    `yaml:"app_description"` // 写入应用目录 README.md
 	AccessTokenFile string    `yaml:"access_token_file"`
-	RemoteRoot      string    `yaml:"remote_root"`
+	RemoteRoot      string    `yaml:"remote_root"` // 备份根目录,空 = 网盘根目录(项目目录直接建在根下)
 	LogFile         string    `yaml:"log_file"`
 	Projects        []Project `yaml:"projects"`
 }
@@ -83,12 +81,10 @@ func NormalizePath(p string) string {
 	return p
 }
 
-// Root 返回远端根目录:remote_root 优先,否则 /apps/<app_name>。
+// Root 返回远端备份根目录:remote_root 优先,空则为网盘根目录(返回空串,
+// 路径拼接时自然形如 "/<项目id>/...")。
 func (c *Config) Root() string {
-	if c.RemoteRoot != "" {
-		return strings.TrimSuffix(c.RemoteRoot, "/")
-	}
-	return "/apps/" + c.AppName
+	return strings.TrimSuffix(c.RemoteRoot, "/")
 }
 
 // ParseDailyAt 解析 24 小时制 "HH:MM"。
@@ -113,9 +109,6 @@ func Load(path string) (*Config, error) {
 	}
 	if c.AppKey == "" || c.SecretKey == "" {
 		return nil, fmt.Errorf("app_key / secret_key 不能为空")
-	}
-	if c.RemoteRoot == "" && c.AppName == "" {
-		return nil, fmt.Errorf("remote_root 为空时必须提供 app_name(应用目录名为 /apps/<app_name>)")
 	}
 	if c.AccessTokenFile == "" {
 		c.AccessTokenFile = "~/.bbs/token.json"

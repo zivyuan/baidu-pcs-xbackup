@@ -6,7 +6,7 @@
 
 基于百度网盘官方开放平台 API( pan.baidu.com/union )实现自动备份工具:定期备份本地指定文件/目录到百度网盘,支持保留份数与备份频率。
 
-- 远端目录结构:`/<远程根目录>/<项目id>/<YYYYMMDD>/<任务名>`,如 `davidoff/20261014/realdata`。
+- 远端目录结构:`/<远程根目录>/<项目id>/<YYYYMMDD>/<任务名>`,如 `BaiduPCS自动备份/20261014/releases`。`remote_root` 留空时项目目录直接建在网盘根目录(实测个人应用 token 可在根目录建目录)。
 - 一个项目包含多个任务;备份频率最高每天一次,日期目录名即 `YYYYMMDD`。
 - 保留份数按任务设置,清理以日期目录为粒度。
 - 单二进制(Go)部署,支持 macOS、Windows(含 Cygwin 环境、Windows Server)、Linux(Ubuntu、CentOS、Linux Mint)。
@@ -22,7 +22,7 @@
 
 - **官方开放平台 API**,不用 BaiduPCS-Go(逆向接口,风控风险)与旧 PCS API(已废弃)。前提:已有开放平台个人应用 AppKey。
 - **Go 实现**:纯标准库覆盖 HTTP/tar.gz/调度,单文件交叉编译。
-- 上传默认目标为个人应用目录 `/apps/<应用名>/`(个人应用权限范围,可在配置中覆盖远程根目录)。
+- 上传默认目标为网盘根目录(实测个人应用 token 可直接在根目录创建目录,不依赖 `/apps/<应用名>` 应用目录);可通过 `remote_root` 覆盖远程根目录。
 
 ## 项目结构
 
@@ -47,12 +47,12 @@ baidu-backup-store/
 ```yaml
 app_key: "xxx"
 secret_key: "xxx"
-app_name: "我的备份应用"                   # remote_root 为空时必填
 access_token_file: "~/.bbs/token.json"   # 0600 权限
-remote_root: ""                          # 空 = /apps/<app_name,此时 app_name 必填>
+remote_root: ""                          # 空 = 网盘根目录(项目目录直接建在根下)
 log_file: ""                             # daemon 模式默认 ./bbs.log,可覆盖
 projects:
   - id: davidoff
+    description: "Davidoff 项目数据备份"   # 可选,写入项目目录 README.md
     tasks:
       - name: realdata
         source: /data/realdata           # 文件或目录

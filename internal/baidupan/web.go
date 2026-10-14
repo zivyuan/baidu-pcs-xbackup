@@ -1,7 +1,12 @@
 package baidupan
 
 // WebClient 网页版网盘接口客户端(BDUSS Cookie 认证)。
-// 端点与参数参照 BaiduPCS-Go(Apache-2.0)已验证可用的组合:
+// 端点经 Playwright 抓包官方 Web 客户端 + Go 实测验证(2026-10):
+//   - 列目录:pan.baidu.com/rest/2.0/xpan/file?method=list(BDUSS + netdisk UA)
+//   - 建目录:pan.baidu.com/api/create(a=mkdir)
+//   - 删 除:pan.baidu.com/api/filemanager?opera=delete(需 bdstoken)
+//   - 上 传:api/precreate → d.pcs superfile2 → api/create(同 BaiduPCS-Go)
+// 旧 pcs.baidu.com/rest/2.0/pcs/* 端点已对纯 BDUSS 返回 31030,不可再用。
 // 非公开接口,百度随时可能变动;使用有账号限流/风控风险,建议小号专用。
 
 import (
@@ -32,6 +37,7 @@ type WebClient struct {
 	CredFile string // BDUSS 凭证文件路径
 	HTTP     *http.Client
 	bduss    string
+	bdstoken string // 写操作的 CSRF token(filemanager 删除必需)
 }
 
 func NewWebClient(credFile string) *WebClient {
@@ -88,9 +94,9 @@ func (w *WebClient) LoginWeb(bduss string) error {
 		Total int64 `json:"total"`
 		Used  int64 `json:"used"`
 	}
-	if err := w.get(&q, "https://pcs.baidu.com/rest/2.0/pcs/quota", url.Values{
-		"method": {"info"}, "app_id": {webAppID},
+	if err := w.get(&q, "https://pan.baidu.com/api/quota", url.Values{
 		"checkfree": {"1"}, "checkexpire": {"1"},
+		"web": {"1"}, "clienttype": {"0"},
 	}); err != nil {
 		return fmt.Errorf("BDUSS 校验失败(可能已失效): %w", err)
 	}
@@ -101,6 +107,28 @@ func (w *WebClient) LoginWeb(bduss string) error {
 	fmt.Printf("登录成功,网盘已用 %.2fGB / %.2fGB\n",
 		float64(q.Used)/1e9, float64(q.Total)/1e9)
 	return nil
+}
+
+// bdstoken 拉取写操作的 CSRF token(缓存于客户端生命周期内)。
+func (w *WebClient) getBdstoken() (string, error) {
+	if w.bdstoken != "" {
+		return w.bdstoken, nil
+	}
+	var out struct {
+		Result struct {
+			BDSToken string `json:"bdstoken"`
+		} `json:"result"`
+	}
+	if err := w.get(&out, "https://pan.baidu.com/api/gettemplatevariable", url.Values{
+		"fields": {`["bdstoken"]`}, "clienttype": {"0"},
+	}); err != nil {
+		return "", fmt.Errorf("获取 bdstoken: %w", err)
+	}
+	if out.Result.BDSToken == "" {
+		return "", fmt.Errorf("获取 bdstoken: 响应为空(BDUSS 可能已失效)")
+	}
+	w.bdstoken = out.Result.BDSToken
+	return w.bdstoken, nil
 }
 
 // redact 从错误文本中抹掉 BDUSS。
@@ -161,6 +189,22 @@ func (w *WebClient) do(out any, req *http.Request) error {
 	return parseResp(out, body, req.URL.Path)
 }
 
+// getRetry 同 get,但对风控性 errno=-6(登录态判定抖动)退避重试。
+// 实测 BDUSS 有效时 xpan 列目录偶发 -6,重试 1-2 次即恢复。仅用于 GET。
+func (w *WebClient) getRetry(out any, rawURL string, params url.Values) error {
+	var err error
+	for attempt := 0; attempt < 3; attempt++ {
+		if attempt > 0 {
+			time.Sleep(time.Duration(attempt) * time.Second)
+		}
+		err = w.get(out, rawURL, params)
+		if err == nil || !IsErrno(err, -6) {
+			return err
+		}
+	}
+	return err
+}
+
 // MkdirAll 逐级创建远端目录(errno -8 已存在视为成功)。
 func (w *WebClient) MkdirAll(remoteDir string) error {
 	parts := strings.Split(strings.Trim(remoteDir, "/"), "/")
@@ -170,8 +214,11 @@ func (w *WebClient) MkdirAll(remoteDir string) error {
 		var out struct {
 			Errno int64 `json:"errno"`
 		}
-		err := w.postForm(&out, "https://pcs.baidu.com/rest/2.0/pcs/file",
-			url.Values{"method": {"mkdir"}, "path": {cur}}, nil)
+		err := w.postForm(&out, "https://pan.baidu.com/api/create", url.Values{
+			"a": {"mkdir"}, "web": {"1"}, "clienttype": {"0"},
+		}, url.Values{
+			"path": {cur}, "isdir": {"1"},
+		})
 		if err != nil {
 			if IsErrno(err, -8) {
 				continue // 已存在
@@ -182,7 +229,7 @@ func (w *WebClient) MkdirAll(remoteDir string) error {
 	return nil
 }
 
-// List 列目录(PCS 接口,一次取全量)。
+// List 列目录(xpan 接口;含 -6 退避重试)。
 func (w *WebClient) List(dir string) ([]Entry, error) {
 	var out struct {
 		Errno int64 `json:"errno"`
@@ -193,12 +240,11 @@ func (w *WebClient) List(dir string) ([]Entry, error) {
 			Size           int64  `json:"size"`
 		} `json:"list"`
 	}
-	err := w.get(&out, "https://pcs.baidu.com/rest/2.0/pcs/file", url.Values{
+	err := w.getRetry(&out, "https://pan.baidu.com/rest/2.0/xpan/file", url.Values{
 		"method": {"list"},
-		"path":   {dir},
-		"by":     {"name"},
-		"order":  {"asc"},
-		"limit":  {"0-2147483647"},
+		"dir":    {dir},
+		"order":  {"name"},
+		"num":    {"1000"},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("列目录 %s: %w", dir, err)
@@ -217,17 +263,56 @@ func (w *WebClient) List(dir string) ([]Entry, error) {
 }
 
 // Download 按路径取回文件内容(仅小文件:fingerprint 比对用)。
-// PCS download 接口 302 到下载地址,cookie jar 与 CheckRedirect 保证带上 BDUSS/UA。
-func (w *WebClient) Download(path string) ([]byte, error) {
+// 路径:列父目录取 fs_id(method=meta 不认 BDUSS)→ filemetas 取 dlink → GET dlink。
+func (w *WebClient) Download(p string) ([]byte, error) {
 	if err := w.EnsureToken(); err != nil {
 		return nil, err
 	}
-	params := url.Values{
-		"method": {"download"},
-		"path":   {path},
-		"app_id": {webAppID},
+	// 1. 列父目录 → fs_id
+	var ls struct {
+		Errno int64 `json:"errno"`
+		List  []struct {
+			ServerFilename string `json:"server_filename"`
+			FsID           uint64 `json:"fs_id"`
+		} `json:"list"`
 	}
-	req, err := http.NewRequest("GET", "https://pcs.baidu.com/rest/2.0/pcs/file?"+params.Encode(), nil)
+	if err := w.getRetry(&ls, "https://pan.baidu.com/rest/2.0/xpan/file", url.Values{
+		"method": {"list"},
+		"dir":    {path.Dir(p)},
+		"order":  {"name"},
+		"num":    {"1000"},
+	}); err != nil {
+		return nil, fmt.Errorf("列目录取文件信息 %s: %w", p, err)
+	}
+	var fsid uint64
+	for _, it := range ls.List {
+		if it.ServerFilename == path.Base(p) {
+			fsid = it.FsID
+			break
+		}
+	}
+	if fsid == 0 {
+		return nil, fmt.Errorf("文件不存在: %s", p)
+	}
+	// 2. fs_id → dlink
+	fsids, _ := json.Marshal([]uint64{fsid})
+	var fm struct {
+		Errno int64 `json:"errno"`
+		Info  []struct {
+			Errno int64  `json:"errno"`
+			Dlink string `json:"dlink"`
+		} `json:"info"`
+	}
+	if err := w.getRetry(&fm, "https://pan.baidu.com/rest/2.0/xpan/file", url.Values{
+		"method": {"filemetas"}, "fsids": {string(fsids)}, "dlink": {"1"},
+	}); err != nil {
+		return nil, fmt.Errorf("取下载链接 %s: %w", p, err)
+	}
+	if len(fm.Info) == 0 || fm.Info[0].Dlink == "" {
+		return nil, fmt.Errorf("未取得下载链接: %s", p)
+	}
+	// 3. GET dlink(CheckRedirect 保持 UA 与 cookie)
+	req, err := http.NewRequest("GET", fm.Info[0].Dlink, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -247,7 +332,7 @@ func (w *WebClient) Download(path string) ([]byte, error) {
 	return body, nil
 }
 
-// Delete 批量删除文件/目录(PCS 接口,multipart form 传 param)。
+// Delete 批量删除文件/目录(api/filemanager,需 bdstoken)。
 func (w *WebClient) Delete(paths []string) error {
 	if len(paths) == 0 {
 		return nil
@@ -255,49 +340,35 @@ func (w *WebClient) Delete(paths []string) error {
 	if err := w.EnsureToken(); err != nil {
 		return err
 	}
-	type item struct {
-		Path string `json:"path"`
-	}
-	list := make([]item, 0, len(paths))
-	for _, p := range paths {
-		list = append(list, item{Path: p})
-	}
-	j, _ := json.Marshal(list)
-
-	var buf bytes.Buffer
-	mw := multipart.NewWriter(&buf)
-	fw, _ := mw.CreateFormField("param")
-	fw.Write(j)
-	mw.Close()
-
-	params := url.Values{"method": {"delete"}, "app_id": {webAppID}}
-	req, err := http.NewRequest("POST",
-		"https://pcs.baidu.com/rest/2.0/pcs/file?"+params.Encode(), &buf)
+	token, err := w.getBdstoken()
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("User-Agent", netdiskUA)
-
+	list, _ := json.Marshal(paths)
 	var out struct {
 		Errno int64 `json:"errno"`
 		Info  []struct {
 			Path  string `json:"path"`
-			Errno int64 `json:"errno"`
+			Errno int64  `json:"errno"`
 		} `json:"info"`
 	}
-	if err := w.do(&out, req); err != nil {
+	err = w.postForm(&out, "https://pan.baidu.com/api/filemanager", url.Values{
+		"opera": {"delete"}, "async": {"0"},
+		"web": {"1"}, "clienttype": {"0"}, "bdstoken": {token},
+	}, url.Values{"filelist": {string(list)}})
+	if err != nil {
 		return fmt.Errorf("删除失败 %v: %w", paths, err)
 	}
 	for _, it := range out.Info {
-		if it.Errno != 0 && it.Errno != 12 && it.Errno != -9 { // 12/-9: 不存在,视为已删
+		// 12/-9/8001: 不存在,视为已删
+		if it.Errno != 0 && it.Errno != 12 && it.Errno != -9 && it.Errno != 8001 {
 			return fmt.Errorf("删除 %s 失败: errno=%d", it.Path, it.Errno)
 		}
 	}
 	return nil
 }
 
-// UploadFile 网页版三步上传:api/precreate → pcs superfile2 分片 → api/create。
+// UploadFile 网页版三步上传:api/precreate → d.pcs superfile2 分片 → api/create。
 // 与 oauth 实现同构:秒传命中直接返回;分片失败重试 3 次(1s/2s/4s)。
 func (w *WebClient) UploadFile(remotePath, localPath string) error {
 	size, _, blockJSON, err := md5Chunks(localPath)
@@ -362,9 +433,12 @@ func (w *WebClient) UploadFile(remotePath, localPath string) error {
 	return nil
 }
 
-// uploadChunk 上传单个 4MB 分片到 pcs superfile2(multipart file 字段),
-// 失败重试 3 次(1s/2s/4s)。
+// uploadChunk 上传单个 4MB 分片到 d.pcs superfile2(PUT 原始字节,
+// 与 oauth 实现同构),失败重试 3 次(1s/2s/4s)。
 func (w *WebClient) uploadChunk(uploadID, remotePath string, seq int, localPath string) error {
+	if err := w.EnsureToken(); err != nil {
+		return err
+	}
 	offset := int64(seq) * chunkSize
 	chunk := make([]byte, chunkSize)
 	var lastErr error
@@ -393,36 +467,38 @@ func (w *WebClient) uploadChunk(uploadID, remotePath string, seq int, localPath 
 		mw.Close()
 
 		params := url.Values{
-			"app_id":   {webAppID},
 			"method":   {"upload"},
 			"type":     {"tmpfile"},
 			"path":     {remotePath},
 			"uploadid": {uploadID},
 			"partseq":  {strconv.Itoa(seq)},
-			"vip":      {"1"},
+			"app_id":   {webAppID},
 		}
 		req, err := http.NewRequest("POST",
-			"https://pcs.baidu.com/rest/2.0/pcs/superfile2?"+params.Encode(), &buf)
+			"https://d.pcs.baidu.com/rest/2.0/pcs/superfile2?"+params.Encode(), &buf)
 		if err != nil {
 			return err
 		}
 		req.Header.Set("Content-Type", mw.FormDataContentType())
 		req.Header.Set("User-Agent", netdiskUA)
-
+		resp, err := w.HTTP.Do(req)
+		if err != nil {
+			lastErr = w.redact(err)
+			continue
+		}
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+		resp.Body.Close()
 		var out struct {
 			Errno int64  `json:"errno"`
 			Error string `json:"error_msg"`
 			MD5   string `json:"md5"`
 		}
-		if err := w.do(&out, req); err != nil {
-			lastErr = err
-			continue
+		json.Unmarshal(body, &out)
+		if resp.StatusCode == 200 && out.Errno == 0 && out.MD5 != "" {
+			return nil
 		}
-		if out.MD5 == "" { // 无 md5 视为未成功
-			lastErr = fmt.Errorf("superfile2 errno=%d 无 md5 返回", out.Errno)
-			continue
-		}
-		return nil
+		lastErr = fmt.Errorf("superfile2 http=%d errno=%d body=%s",
+			resp.StatusCode, out.Errno, string(body))
 	}
 	return lastErr
 }

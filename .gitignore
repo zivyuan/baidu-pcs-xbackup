@@ -5,8 +5,10 @@ token.json
 config.yaml
 /bpxup
 
-# 接口探测工具的本地产物(会话/凭证/录制)
+# 接口探测工具的本地产物(会话/凭证/录制/机器识别码)
 tools/probe/state.json
 tools/probe/bduss.json
 tools/probe/capture/
 tools/probe/__pycache__/
+tools/probe/.venv/
+tools/probe/fingerprint

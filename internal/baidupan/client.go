@@ -85,12 +85,19 @@ func (c *Client) do(out any, req *http.Request, api string) error {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	// 错误响应有两种风格:xpan 用 errno,开放平台网关用 error_code(如 31023),都要识别
 	var env struct {
-		Errno    int64  `json:"errno"`
-		ErrorMsg string `json:"error_msg"`
+		Errno     int64  `json:"errno"`
+		ErrorCode int64  `json:"error_code"`
+		ErrorMsg  string `json:"error_msg"`
 	}
-	if err := json.Unmarshal(body, &env); err == nil && env.Errno != 0 {
-		return &apiError{API: api, Errno: env.Errno, Msg: env.ErrorMsg}
+	if err := json.Unmarshal(body, &env); err == nil {
+		if env.Errno != 0 {
+			return &apiError{API: api, Errno: env.Errno, Msg: env.ErrorMsg}
+		}
+		if env.ErrorCode != 0 {
+			return &apiError{API: api, Errno: env.ErrorCode, Msg: env.ErrorMsg}
+		}
 	}
 	if err := json.Unmarshal(body, out); err != nil {
 		return fmt.Errorf("%s 响应解析失败: %s", api, string(body))

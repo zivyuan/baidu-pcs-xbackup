@@ -80,22 +80,29 @@ func (c *Client) List(dir string) ([]Entry, error) {
 }
 
 // Delete 删除文件/目录(目录整体递归删除)。
+// 官方接口:POST /rest/2.0/xpan/file?method=filemanager&opera=delete,
+// 表单参数 filelist(JSON 数组)+ async(1 自适应)。
 func (c *Client) Delete(paths []string) error {
 	if len(paths) == 0 {
 		return nil
 	}
 	j, _ := json.Marshal(paths)
 	var out struct {
-		Errno int64 `json:"errno"`
-		Info  []struct {
+		Errno  int64  `json:"errno"`
+		TaskID uint64 `json:"taskid"`
+		Info   []struct {
 			Path  string `json:"path"`
 			Errno int64  `json:"errno"`
 		} `json:"info"`
 	}
-	err := c.callPOST(&out, "/rest/2.0/xpan/filemanager",
-		url.Values{"method": {"delete"}}, url.Values{"filelist": {string(j)}})
+	err := c.callPOST(&out, "/rest/2.0/xpan/file",
+		url.Values{"method": {"filemanager"}, "opera": {"delete"}},
+		url.Values{"filelist": {string(j)}, "async": {"1"}})
 	if err != nil {
 		return fmt.Errorf("删除失败 %v: %w", paths, err)
+	}
+	if len(out.Info) == 0 && out.TaskID != 0 {
+		return nil // 转为异步任务,已受理
 	}
 	for _, it := range out.Info {
 		if it.Errno != 0 && it.Errno != 12 && it.Errno != -9 { // 12/-9: 不存在,视为已删

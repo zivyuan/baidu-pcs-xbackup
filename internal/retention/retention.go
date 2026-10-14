@@ -3,6 +3,7 @@ package retention
 import (
 	"log/slog"
 	"sort"
+	"time"
 
 	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
 	"github.com/zivyuan/baidu-backup-store/internal/config"
@@ -68,13 +69,22 @@ func taskHasBackup(pan *baidupan.Client, datePath string, t config.Task) (bool, 
 }
 
 // pruneEmptyDateDirs 删除已空的日期目录,失败静默(不影响主流程)。
+// 删除任务数据后网盘列表存在短暂最终一致,故带重试。
 func pruneEmptyDateDirs(pan *baidupan.Client, projDir string, dates []string) {
 	for _, d := range dates {
-		entries, err := pan.List(projDir + "/" + d)
-		if err != nil || len(entries) > 0 {
-			continue
+		dir := projDir + "/" + d
+		for attempt := 0; attempt < 3; attempt++ {
+			if attempt > 0 {
+				time.Sleep(2 * time.Second)
+			}
+			entries, err := pan.List(dir)
+			if err != nil || len(entries) > 0 {
+				continue
+			}
+			if pan.Delete([]string{dir}) == nil {
+				break
+			}
 		}
-		_ = pan.Delete([]string{projDir + "/" + d})
 	}
 }
 

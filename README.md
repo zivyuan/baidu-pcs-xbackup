@@ -1,6 +1,10 @@
 # baidu-pcs-xbackup(bpxup)- 百度网盘自动备份工具
 
-基于百度网盘官方开放平台 API 的定时备份工具。Go 静态编译,单文件部署,支持 macOS、Linux(Ubuntu/CentOS/Mint 等)、Windows(含 Cygwin、Windows Server)。
+定时备份工具,支持两种认证模式:
+- **oauth**(默认):百度网盘开放平台 API,需要企业 AppKey(开放平台现已只对企业开放);
+- **web**:网页版网盘接口 + BDUSS Cookie(思路同 BaiduPCS-Go),个人账号可用。
+
+Go 静态编译,单文件部署,支持 macOS、Linux(Ubuntu/CentOS/Mint 等)、Windows(含 Cygwin、Windows Server)。
 
 ## 功能
 
@@ -17,10 +21,12 @@
 复制 `config.example.yaml` 为 `config.yaml`(**此文件含密钥,已在 .gitignore 中,勿入库**):
 
 ```yaml
-app_key: "你的AppKey"
+auth: oauth                       # oauth | web
+app_key: "你的AppKey"             # auth: oauth 时必填
 secret_key: "你的SecretKey"
 app_name: "项目数据备份"           # 备份根目录名(建在网盘根下);留空 = /apps
-access_token_file: "~/.bpxup/token.json"
+access_token_file: "~/.bpxup/token.json"   # oauth 模式凭证
+bduss_file: "~/.bpxup/bduss.json"          # web 模式凭证
 log_file: ""                      # daemon 模式默认 ./bpxup.log
 projects:
   - id: davidoff
@@ -32,10 +38,14 @@ projects:
         daily_at: "03:00"         # 每日执行时刻(daemon 用)
 ```
 
+个人账号(无企业 AppKey)把 `auth` 改为 `web` 即可,`app_key`/`secret_key` 不再需要。
+
 ## 使用
 
 ```bash
-# 1. 首次授权(OAuth 设备码,浏览器确认一次,之后自动续期)
+# 1. 首次登录
+#    oauth 模式:设备码授权,浏览器确认一次,之后自动续期
+#    web 模式:粘贴网页版网盘 Cookie 中的 BDUSS
 ./bpxup login --config config.yaml
 
 # 2. 单次执行(适合 cron / Task Scheduler)
@@ -45,7 +55,7 @@ projects:
 ./bpxup daemon --config config.yaml
 ```
 
-配置路径优先级:`--config` 参数 > `BBS_CONFIG` 环境变量 > `./config.yaml`。
+配置路径优先级:`--config` 参数 > `BPXUP_CONFIG` 环境变量 > `./config.yaml`。
 daemon 启动后不感知配置变化,改配置需重启进程。
 
 ## 各平台自启动
@@ -124,6 +134,15 @@ make publish VERSION=0.1.0
 - 目录结构:`/<app_name>/<项目id>/<日期>/<任务名>`;`app_name` 留空则用 `/apps`,显式配置 `remote_root` 时优先。
 - access_token 约 30 天过期,工具自动用 refresh_token 续期;refresh_token 失效时重新 `bpxup login`。
 - 日志为结构化文本,token 与 secret 永不写入日志。
+
+## web 模式须知(auth: web)
+
+走的是网页版非公开接口(参考 BaiduPCS-Go 的可用端点组合),使用前必须了解:
+
+- **非公开接口,随时可能失效**。无人值守场景下接口变动意味着备份悄悄断掉,请自行配置对 `run` 失败的告警(cron 邮件、监控面板等)。
+- **账号风险**:使用非官方接口原则上违反百度用户协议,存在限流/风控可能,建议用小号专门跑备份。
+- **BDUSS 生命周期**:长期有效但不可自动续期,改密码等操作会使其失效;失效后重新执行 `bpxup login` 粘贴新 BDUSS 即可。
+- BDUSS 即登录凭证,`bduss_file`(默认 `~/.bpxup/bduss.json`,0600)等同密码,勿泄露勿入库。
 
 ## 许可证
 

@@ -91,6 +91,12 @@ func (c *Client) do(out any, req *http.Request, api string) error {
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	return parseResp(out, body, api)
+}
+
+// parseResp 统一解析百度响应:errno!=0 或 error_code!=0 返回 *apiError,
+// 否则把 body 解到 out。oauth 与 web 两种客户端共用。
+func parseResp(out any, body []byte, api string) error {
 	// 错误响应有两种风格:xpan 用 errno,开放平台网关用 error_code(如 31023),都要识别
 	var env struct {
 		Errno     int64  `json:"errno"`

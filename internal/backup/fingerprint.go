@@ -54,7 +54,7 @@ func (e *Engine) ensureFingerprint(p config.Project, t config.Task) error {
 		if en.IsDir || en.Name != name {
 			continue
 		}
-		content, err := e.Pan.Download(en.FsID)
+		content, err := e.Pan.Download(en.Path)
 		if err != nil {
 			return fmt.Errorf("读取 fingerprint: %w", err)
 		}

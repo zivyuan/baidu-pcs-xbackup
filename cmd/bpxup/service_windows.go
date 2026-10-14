@@ -14,7 +14,6 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
-	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
@@ -31,10 +30,10 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 	}
 	// 服务模式下日志一律走配置的 log_file(daemon 默认 ./bpxup.log,即服务工作目录)
 	log := setupLogger(cfg, true)
-	pan := baidupan.New(cfg.AppKey, cfg.SecretKey, cfg.AccessTokenFile)
+	pan := newProvider(cfg)
 	eng := backup.New(pan, cfg.Root(), log)
 	if err := pan.EnsureToken(); err != nil {
-		log.Error("token 无效", "err", err)
+		log.Error("凭证无效", "err", err)
 		return true, 1
 	}
 	done := make(chan error, 1)

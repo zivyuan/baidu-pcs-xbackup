@@ -14,14 +14,14 @@ func usage() {
   bpxup <命令> [参数]
 
 命令:
-  login                     设备码授权,获取并保存 token
+  login                     登录并保存凭证(oauth: 设备码授权;web: 粘贴 BDUSS)
   run                       立即执行备份+清理(适合 cron/Task Scheduler)
   daemon                    常驻调度模式
   service <install|uninstall|start|stop>   Windows 服务管理(仅 Windows)
   version                   显示版本
 
 全局参数:
-  --config 路径             指定配置文件,默认 ./config.yaml
+  --config 路径             指定配置文件,默认 ./config.yaml(BPXUP_CONFIG 可覆盖)
 `)
 }
 

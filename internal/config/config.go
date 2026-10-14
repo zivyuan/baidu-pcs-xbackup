@@ -24,12 +24,14 @@ type Project struct {
 }
 
 type Config struct {
-	AppKey          string    `yaml:"app_key"`
-	SecretKey       string    `yaml:"secret_key"`
-	AppName         string    `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
-	AccessTokenFile string    `yaml:"access_token_file"`
-	RemoteRoot      string    `yaml:"remote_root"` // 显式指定备份根目录,优先于 app_name
-	LogFile         string    `yaml:"log_file"`
+	Auth            string `yaml:"auth"` // oauth(默认,开放平台,需企业 AppKey)| web(BDUSS Cookie,个人账号可用)
+	AppKey          string `yaml:"app_key"`
+	SecretKey       string `yaml:"secret_key"`
+	AppName         string `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
+	AccessTokenFile string `yaml:"access_token_file"` // oauth 模式 token 文件
+	BdussFile       string `yaml:"bduss_file"`        // web 模式 BDUSS 凭证文件
+	RemoteRoot      string `yaml:"remote_root"`       // 显式指定备份根目录,优先于 app_name
+	LogFile         string `yaml:"log_file"`
 	Projects        []Project `yaml:"projects"`
 }
 
@@ -81,6 +83,14 @@ func NormalizePath(p string) string {
 	return p
 }
 
+// CredDir 当前认证模式的凭证文件所在目录(fingerprint 等本地状态与凭证同目录)。
+func (c *Config) CredDir() string {
+	if c.Auth == "web" {
+		return filepath.Dir(c.BdussFile)
+	}
+	return filepath.Dir(c.AccessTokenFile)
+}
+
 // Root 返回远端备份根目录,优先级:remote_root > app_name(建在网盘根下,
 // 如 /项目数据备份)> /apps(保留容器目录,已存在无需创建)。
 func (c *Config) Root() string {
@@ -113,8 +123,15 @@ func Load(path string) (*Config, error) {
 	if err := yaml.Unmarshal(data, c); err != nil {
 		return nil, fmt.Errorf("解析配置: %w", err)
 	}
-	if c.AppKey == "" || c.SecretKey == "" {
-		return nil, fmt.Errorf("app_key / secret_key 不能为空")
+	switch c.Auth {
+	case "", "oauth":
+		c.Auth = "oauth"
+	case "web":
+	default:
+		return nil, fmt.Errorf("auth 必须为 oauth 或 web")
+	}
+	if c.Auth == "oauth" && (c.AppKey == "" || c.SecretKey == "") {
+		return nil, fmt.Errorf("auth: oauth 需要 app_key / secret_key")
 	}
 	if c.AppName != "" {
 		if err := validName("app_name", c.AppName); err != nil {
@@ -125,6 +142,10 @@ func Load(path string) (*Config, error) {
 		c.AccessTokenFile = "~/.bpxup/token.json"
 	}
 	c.AccessTokenFile = NormalizePath(c.AccessTokenFile)
+	if c.BdussFile == "" {
+		c.BdussFile = "~/.bpxup/bduss.json"
+	}
+	c.BdussFile = NormalizePath(c.BdussFile)
 	c.LogFile = NormalizePath(c.LogFile)
 	if len(c.Projects) == 0 {
 		return nil, fmt.Errorf("至少需要一个 project")

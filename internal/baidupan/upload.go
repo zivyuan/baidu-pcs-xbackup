@@ -15,25 +15,19 @@ import (
 
 const chunkSize = 4 << 20 // 4MB
 
-// UploadFile 官方三步上传:precreate → superfile2 分片 → create。
-// 秒传命中直接返回;分片失败重试 3 次(1s/2s/4s)。
-func (c *Client) UploadFile(remotePath, localPath string) error {
-	if err := c.EnsureToken(); err != nil {
-		return err
-	}
+// md5Chunks 计算文件的分片 md5(4MB 一片),oauth 与 web 上传共用。
+// 返回文件大小、分片 md5 列表及其 JSON 序列化(precreate/create 的 block_list)。
+func md5Chunks(localPath string) (size int64, md5s []string, blockJSON string, err error) {
 	f, err := os.Open(localPath)
 	if err != nil {
-		return err
+		return 0, nil, "", err
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil {
-		return err
+		return 0, nil, "", err
 	}
-	size := st.Size()
-
-	// 1. 计算分片 md5
-	var md5s []string
+	size = st.Size()
 	buf := make([]byte, chunkSize)
 	for {
 		n, rerr := io.ReadFull(f, buf)
@@ -45,13 +39,26 @@ func (c *Client) UploadFile(remotePath, localPath string) error {
 			break
 		}
 		if rerr != nil {
-			return rerr
+			return 0, nil, "", rerr
 		}
 	}
 	if size == 0 {
 		md5s = []string{} // 空文件 block_list 为空数组
 	}
-	blockJSON, _ := json.Marshal(md5s)
+	j, _ := json.Marshal(md5s)
+	return size, md5s, string(j), nil
+}
+
+// UploadFile 官方三步上传:precreate → superfile2 分片 → create。
+// 秒传命中直接返回;分片失败重试 3 次(1s/2s/4s)。
+func (c *Client) UploadFile(remotePath, localPath string) error {
+	if err := c.EnsureToken(); err != nil {
+		return err
+	}
+	size, md5s, blockJSON, err := md5Chunks(localPath)
+	if err != nil {
+		return err
+	}
 
 	// 2. precreate
 	preForm := url.Values{

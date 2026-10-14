@@ -34,12 +34,37 @@ func (c *Client) loadToken() (*Token, error) {
 }
 
 func (c *Client) saveToken(t *Token) error {
-	if err := os.MkdirAll(filepath.Dir(c.TokenFile), 0o700); err != nil {
+	dir := filepath.Dir(c.TokenFile)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
 	data, _ := json.MarshalIndent(t, "", "  ")
+	// 临时文件 + rename 原子写,避免刷新中断产生半截 token 文件
+	tmp, err := os.CreateTemp(dir, ".token-*")
+	if err != nil {
+		return err
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
+	if err := os.Rename(tmpPath, c.TokenFile); err != nil {
+		os.Remove(tmpPath)
+		return err
+	}
 	c.token = t
-	return os.WriteFile(c.TokenFile, data, 0o600)
+	return nil
 }
 
 // Login 设备码授权:打印验证地址,轮询直到用户确认或超时。

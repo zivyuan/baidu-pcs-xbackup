@@ -1,0 +1,26 @@
+name: Go CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build & Vet
+        run: |
+          go build ./...
+          go vet ./...
+
+      # Windows-only 源码(service_windows.go)在 darwin/linux 构建中不参与编译,
+      # 专门交叉编译覆盖,防止"本地过了、Windows 挂了"的盲区
+      - name: Cross-build (windows)
+        run: GOOS=windows GOARCH=amd64 go build ./...

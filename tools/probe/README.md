@@ -25,18 +25,30 @@ python probe.py auto     # 自动化场景:建目录/上传探针文件/触发�
 
 ## 对账方法
 
-拿 capture 里同类操作的请求与 `internal/baidupan/web.go` 逐项对比:
-
-| 操作 | web.go 当前实现 | 官方客户端真实流量看什么 |
-|------|----------------|------------------------|
-| 列目录 | `pcs.baidu.com/rest/2.0/pcs/file?method=list` | 是否改走 `pan.baidu.com/api/list`,必带参数(web/channel/app_id?) |
-| 建目录 | `pcs .../pcs/file?method=mkdir` | 同上,注意 `api/create` 的表单字段 |
-| 删除 | `pcs .../pcs/file?method=delete`(multipart param) | 参数结构、是否需要 sign |
-| 上传 | `api/precreate` → `pcs superfile2` → `api/create` | 三步的 URL/表单/必填字段、分片大小 |
-| 下载 | `pcs .../pcs/file?method=download` 302 | dlink 获取方式、UA/Referer 校验 |
-
+拿 capture 里同类操作的请求与 `internal/baidupan/web.go` 逐项对比。
 原则:**官方客户端实际发什么,web.go 就跟什么**。BaiduPCS-Go 的组合只是
 起点,以真实流量为准。
+
+## 已验证端点(2026-10 实测,Go + 纯 BDUSS + netdisk UA)
+
+| 操作 | 端点 | 要点 |
+|------|------|------|
+| 列目录 | `GET pan.baidu.com/rest/2.0/xpan/file?method=list&dir=&num=` | 偶发 errno=-6 风控抖动,退避重试即过 |
+| 建目录 | `POST pan.baidu.com/api/create?a=mkdir` | 表单 path/isdir=1;-8 已存在 |
+| 删除 | `POST pan.baidu.com/api/filemanager?opera=delete` | **必须带 bdstoken**;表单 filelist=json 数组;8001=不存在 |
+| bdstoken | `GET pan.baidu.com/api/gettemplatevariable?fields=["bdstoken"]` | 写操作前取一次缓存 |
+| 上传 | `api/precreate` → `POST d.pcs.baidu.com/rest/2.0/pcs/superfile2`(multipart,**必带 app_id=250528**)→ `api/create` | 分片 4MB |
+| 下载 | 列父目录取 fs_id → `xpan/file?method=filemetas&dlink=1`(响应键 **info** 非 list)→ GET dlink | UA 必须 netdisk |
+| 配额 | `GET pan.baidu.com/api/quota?checkfree=1&checkexpire=1&web=1` | login 校验用 |
+
+踩坑记录(失效时优先复查):
+
+- `pcs.baidu.com/rest/2.0/pcs/file`(*method=list/mkdir/delete/download/meta*)
+  已对纯 BDUSS 恒返回 **31030 pcs token not exist**,整族废弃。
+- `pan.baidu.com/api/list`(web=1)需要页面 JS 种的反爬 Cookie(ndut_fmt 等),
+  Go 无法直接复用,不要走这条路;`xpan/file?method=meta` 同样不认 BDUSS。
+- Python urllib 即使带全 Cookie 也持续 -6(TLS 指纹风控),探测必须用 Go
+  或浏览器内 fetch,结论才对产品有效。
 
 ## 附带产物
 

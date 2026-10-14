@@ -110,6 +110,15 @@ make dist     # 五平台:darwin-arm64/amd64、linux-amd64/arm64、windows-amd64
 make release  # dist + 打包压缩
 ```
 
+### 发布
+
+```bash
+make publish VERSION=0.1.0
+```
+
+一键完成:打 `vX.Y.Z` tag 推送 → 五平台打包 → 创建 GitHub Release。
+规范:版本号语义化;产物包名 `bpxup-<os>-<arch>.tar.gz|.zip`,**包内统一为 `bpxup`(.exe),解压即用**;重发同一版本需先删 GitHub Release 与远端 tag。
+
 ## 注意事项
 
 - 目录结构:`/<app_name>/<项目id>/<日期>/<任务名>`;`app_name` 留空则用 `/apps`,显式配置 `remote_root` 时优先。

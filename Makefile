@@ -13,11 +13,12 @@ dist:
 	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)-linux-arm64 ./cmd/bpxup
 	CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)-windows-amd64.exe ./cmd/bpxup
 
+# 压缩包内统一重命名为 bpxup(.exe),解压即用;平台信息只体现在包名
 release: dist
-	cd dist && tar czf $(BINARY)-darwin-arm64.tar.gz $(BINARY)-darwin-arm64 && rm -rf $(BINARY)-darwin-arm64
-	cd dist && tar czf $(BINARY)-darwin-amd64.tar.gz $(BINARY)-darwin-amd64 && rm -rf $(BINARY)-darwin-amd64
-	cd dist && tar czf $(BINARY)-linux-amd64.tar.gz $(BINARY)-linux-amd64 && rm -rf $(BINARY)-linux-amd64
-	cd dist && tar czf $(BINARY)-linux-arm64.tar.gz $(BINARY)-linux-arm64 && rm -rf $(BINARY)-linux-arm64
-	cd dist && zip -q $(BINARY)-windows-amd64.zip $(BINARY)-windows-amd64.exe && rm -rf $(BINARY)-windows-amd64.exe
+	cd dist && cp $(BINARY)-darwin-arm64 $(BINARY) && tar czf $(BINARY)-darwin-arm64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-darwin-arm64
+	cd dist && cp $(BINARY)-darwin-amd64 $(BINARY) && tar czf $(BINARY)-darwin-amd64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-darwin-amd64
+	cd dist && cp $(BINARY)-linux-amd64 $(BINARY) && tar czf $(BINARY)-linux-amd64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-linux-amd64
+	cd dist && cp $(BINARY)-linux-arm64 $(BINARY) && tar czf $(BINARY)-linux-arm64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-linux-arm64
+	cd dist && cp $(BINARY)-windows-amd64.exe $(BINARY).exe && zip -q $(BINARY)-windows-amd64.zip $(BINARY).exe && rm $(BINARY).exe $(BINARY)-windows-amd64.exe
 
 .PHONY: build dist release

@@ -115,3 +115,7 @@ make release  # dist + 打包压缩
 - 目录结构:`/<app_name>/<项目id>/<日期>/<任务名>`;`app_name` 留空则用 `/apps`,显式配置 `remote_root` 时优先。
 - access_token 约 30 天过期,工具自动用 refresh_token 续期;refresh_token 失效时重新 `bpxup login`。
 - 日志为结构化文本,token 与 secret 永不写入日志。
+
+## 许可证
+
+[Apache-2.0](LICENSE):免费开源,可自由使用、修改、分发(含商用),保留版权与许可声明即可。

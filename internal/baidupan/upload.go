@@ -73,10 +73,12 @@ func (c *Client) UploadFile(remotePath, localPath string) error {
 		url.Values{"method": {"precreate"}}, preForm); err != nil {
 		return fmt.Errorf("预上传 %s: %w", remotePath, err)
 	}
-	if pre.ReturnType == 1 { // 秒传命中
-		return nil
-	}
+	// 注意:实测部分应用 precreate 恒返回 return_type=1 但文件并未创建,
+	// 不可据此判定秒传成功。仅当"无 uploadid 且无需上传分片"才视为真秒传。
 	need := pre.BlockList // 需要实际上传的分片序号
+	if len(need) == 0 && size > 0 && pre.UploadID == "" {
+		return nil // 真秒传命中
+	}
 	if len(need) == 0 && size > 0 {
 		for i := range md5s {
 			need = append(need, i)

@@ -1,4 +1,4 @@
-# baidu-backup-store 设计文档
+# baidu-pcs-xbackup 设计文档
 
 日期:2026-10-14
 
@@ -27,7 +27,7 @@
 ## 项目结构
 
 ```
-baidu-backup-store/
+baidu-pcs-xbackup/
 ├── cmd/bbs/main.go          # CLI 入口
 ├── internal/config/         # 配置加载、校验、路径规范化(含 cygdrive 转换)
 ├── internal/baidupan/       # 官方 API 客户端(oauth/上传/列目录/删除)

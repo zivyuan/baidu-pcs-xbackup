@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 // loadMachineID 读取本机识别码;不存在则生成随机 16 字节 hex 并落盘(0600)。

@@ -1,4 +1,4 @@
-module github.com/zivyuan/baidu-backup-store
+module github.com/zivyuan/baidu-pcs-xbackup
 
 go 1.27.2
 

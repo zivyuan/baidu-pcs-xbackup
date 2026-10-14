@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/zivyuan/baidu-backup-store/internal/backup"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 // Run 常驻调度:每分钟检查各任务是否到达 daily_at,到期执行备份+清理。

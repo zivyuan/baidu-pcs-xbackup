@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zivyuan/baidu-backup-store/internal/backup"
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
-	"github.com/zivyuan/baidu-backup-store/internal/scheduler"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
 // newFlagSet 为子命令建 FlagSet:--config 必有,额外标志由 extra 回调注册。

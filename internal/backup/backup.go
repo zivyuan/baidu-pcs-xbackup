@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
-	"github.com/zivyuan/baidu-backup-store/internal/retention"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/retention"
 )
 
 // Engine 备份引擎:执行单个任务的备份并打完成标志。

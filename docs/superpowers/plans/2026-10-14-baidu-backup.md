@@ -1,4 +1,4 @@
-# baidu-backup-store 实现计划
+# baidu-pcs-xbackup 实现计划
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -10,7 +10,7 @@
 
 ## Global Constraints
 
-- 项目根:`/Users/zivyuan/GoziLib/baidu-backup-store`
+- 项目根:`/Users/zivyuan/GoziLib/baidu-pcs-xbackup`
 - 依赖白名单:`gopkg.in/yaml.v3`(MIT)、`golang.org/x/sys`(BSD);不引入其他第三方库(命令行用标准库 `flag`,不用 cobra)。
 - **不编写测试用例**(用户全局规则);每个任务的验证 = `go build ./... && go vet ./...` 通过 + 该任务的手动检查命令。
 - 全部构建 `CGO_ENABLED=0` 静态编译。
@@ -36,8 +36,8 @@
 - [ ] **Step 2: 初始化模块与 main.go**
 
 ```bash
-cd /Users/zivyuan/GoziLib/baidu-backup-store
-go mod init github.com/zivyuan/baidu-backup-store
+cd /Users/zivyuan/GoziLib/baidu-pcs-xbackup
+go mod init github.com/zivyuan/baidu-pcs-xbackup
 go get gopkg.in/yaml.v3@latest
 ```
 
@@ -1049,8 +1049,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 type Engine struct {
@@ -1208,8 +1208,8 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 // Cleanup 保留任务最近 retention 个备份日期目录,更旧的整体删除。
@@ -1309,8 +1309,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/zivyuan/baidu-backup-store/internal/backup"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 // Run 常驻调度:每分钟检查各任务是否到达 daily_at,到期执行备份+清理。
@@ -1374,10 +1374,10 @@ import (
 	"os"
 	"time"
 
-	"github.com/zivyuan/baidu-backup-store/internal/backup"
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
-	"github.com/zivyuan/baidu-backup-store/internal/scheduler"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
 func parseConfigCmd(name string, args []string) (*config.Config, *flag.FlagSet) {
@@ -1528,10 +1528,10 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 
-	"github.com/zivyuan/baidu-backup-store/internal/backup"
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
-	"github.com/zivyuan/baidu-backup-store/internal/scheduler"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
 const svcName = "bbs"

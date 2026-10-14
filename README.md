@@ -1,4 +1,4 @@
-# bbs - 百度网盘自动备份工具
+# baidu-pcs-xbackup(bbs)- 百度网盘自动备份工具
 
 基于百度网盘官方开放平台 API 的定时备份工具。Go 静态编译,单文件部署,支持 macOS、Linux(Ubuntu/CentOS/Mint 等)、Windows(含 Cygwin、Windows Server)。
 

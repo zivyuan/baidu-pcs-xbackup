@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
-	"github.com/zivyuan/baidu-backup-store/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
 // Cleanup 保留任务最近 retention 个备份,删除粒度为任务级:

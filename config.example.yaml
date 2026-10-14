@@ -1,0 +1,14 @@
+app_key: "你的AppKey"
+secret_key: "你的SecretKey"
+app_name: "你的应用名称"           # remote_root 为空时必填,上传根目录为 /apps/<app_name>
+access_token_file: "~/.bbs/token.json"
+remote_root: ""                   # 留空 = /apps/<app_name>;也可填 /apps/xxx 指定其它目录
+log_file: ""                      # daemon 模式默认 ./bbs.log
+projects:
+  - id: davidoff
+    tasks:
+      - name: realdata
+        source: /data/realdata
+        mode: archive             # archive = tar.gz | raw = 原样递归
+        retention: 7
+        daily_at: "03:00"

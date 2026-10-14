@@ -2,3 +2,5 @@ dist/
 bin/
 *.log
 token.json
+config.yaml
+bbs

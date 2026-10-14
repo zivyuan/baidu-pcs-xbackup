@@ -34,6 +34,7 @@ type Config struct {
 }
 
 var idRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+var dailyAtRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
 
 // NormalizePath 展开 ~,并把 Cygwin 风格 /cygdrive/<盘符>/... 转为 Windows 路径。
 func NormalizePath(p string) string {
@@ -68,13 +69,11 @@ func (c *Config) Root() string {
 
 // ParseDailyAt 解析 24 小时制 "HH:MM"。
 func ParseDailyAt(s string) (int, int, error) {
+	if !dailyAtRe.MatchString(s) {
+		return 0, 0, fmt.Errorf("daily_at 格式错误: %q,应为 HH:MM(如 03:00)", s)
+	}
 	var h, m int
-	if _, err := fmt.Sscanf(s, "%d:%d", &h, &m); err != nil {
-		return 0, 0, fmt.Errorf("daily_at 格式错误: %q,应为 HH:MM", s)
-	}
-	if h < 0 || h > 23 || m < 0 || m > 59 {
-		return 0, 0, fmt.Errorf("daily_at 超出范围: %q", s)
-	}
+	fmt.Sscanf(s, "%d:%d", &h, &m)
 	return h, m, nil
 }
 

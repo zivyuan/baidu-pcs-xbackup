@@ -70,7 +70,7 @@ OAuth 2.0 设备码流程(`bbs login`):
 1. 请求 device code,打印 `verification_url` 与用户码,用户浏览器确认。
 2. 轮询换取 access_token + refresh_token,存 `access_token_file`(JSON,0600)。
 3. scope:`basic,netdisk`。
-4. 每次运行前检查 access_token 有效期,过期自动用 refresh_token 续期(refresh_token 长期有效),无需人工介入。
+4. 每次 API 调用前检查 access_token 有效期,过期自动用 refresh_token 续期(refresh_token 长期有效),无需人工介入——daemon/服务模式长期运行同样适用。
 
 ## 上传流程(官方三步接口)
 
@@ -83,20 +83,24 @@ OAuth 2.0 设备码流程(`bbs login`):
 
 **raw 模式**:递归遍历源目录,按相对路径逐级建目录,逐文件走上述三步(小文件即单片)。
 
-**完成标志**:全部文件成功后,在日期目录上传零字节 `_SUCCESS` 文件。
+**完成标志**(任务级,避免同项目多任务互相干扰):
+- raw 模式:全部文件成功后,在 `<日期>/<任务名>/` 下上传 `_SUCCESS` 文件。
+- archive 模式:单文件上传要么成功要么失败,以 `<日期>/<任务名>.tar.gz` 存在即为完成,无需额外标志。
 
 ## 清理策略
 
-每次备份任务成功后执行:
+每次备份任务成功后执行,删除粒度为**任务级**(不删日期目录中其他任务的数据):
 
 1. 列出 `/<根>/<项目id>/` 下全部日期目录(`xpan/file?method=list`)。
-2. 筛选出包含该任务数据的日期目录(raw:存在 `任务名` 子目录;archive:日期目录下存在 `任务名.tar.gz`)。
-3. 按目录名(即日期)降序排序,保留前 retention 个,其余日期目录整体删除(`xpan/filemanager`,method=delete)。
-4. 删除仅在上传全量成功后进行,避免误删唯一备份。
+2. 筛选出包含该任务数据的日期目录(raw:存在 `任务名` 子目录;archive:存在 `任务名.tar.gz`)。
+3. 按日期降序排序,保留前 retention 个,其余仅删除该任务的数据:`/<日期>/<任务名>`(raw)或 `/<日期>/<任务名>.tar.gz`(archive)。
+4. 删除后若日期目录已空,顺带删除该空日期目录(失败忽略)。
+5. 删除仅在上传全量成功后进行,避免误删唯一备份。
 
 ## 幂等与调度
 
-- **幂等**:任务执行前检查远端当日目录是否已有 `_SUCCESS`,有则跳过(单次与 daemon 共用)。因此 cron/Task Scheduler 与 daemon 混跑也安全,崩溃重启自然续上。
+- **幂等**:任务执行前检查本任务当日完成标志(见"完成标志"),已完成则跳过(单次与 daemon 共用)。因此 cron/Task Scheduler 与 daemon 混跑也安全,崩溃重启自然续上。
+- **配置路径**:`--config` 参数 > `BBS_CONFIG` 环境变量 > `./config.yaml`。
 - **单次模式** `bbs run [--project X] [--task Y]`:立即执行全部(或指定)项目任务,适合 cron / Task Scheduler。
 - **daemon 模式** `bbs daemon`:常驻进程。启动时为每个任务计算"下一次到期时刻"(今天 daily_at,已过则明天),到点逐个执行,随后休眠至最近到期点。时间比较基于本地时区。
 

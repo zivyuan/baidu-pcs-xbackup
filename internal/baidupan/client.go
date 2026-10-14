@@ -2,6 +2,7 @@ package baidupan
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,7 +39,11 @@ func (e *apiError) Error() string {
 }
 
 // callGET 发起 GET 请求,把响应 JSON 解到 out;errno!=0 时返回 *apiError。
+// 每次调用前确保 token 有效(daemon 长期运行自动续期)。
 func (c *Client) callGET(out any, api string, params url.Values) error {
+	if err := c.EnsureToken(); err != nil {
+		return err
+	}
 	params.Set("access_token", c.token.AccessToken)
 	req, err := http.NewRequest("GET", "https://pan.baidu.com"+api+"?"+params.Encode(), nil)
 	if err != nil {
@@ -48,6 +53,9 @@ func (c *Client) callGET(out any, api string, params url.Values) error {
 }
 
 func (c *Client) callPOST(out any, api string, params url.Values, form url.Values) error {
+	if err := c.EnsureToken(); err != nil {
+		return err
+	}
 	params.Set("access_token", c.token.AccessToken)
 	req, err := http.NewRequest("POST", "https://pan.baidu.com"+api+"?"+params.Encode(),
 		strings.NewReader(form.Encode()))
@@ -58,10 +66,22 @@ func (c *Client) callPOST(out any, api string, params url.Values, form url.Value
 	return c.do(out, req, api)
 }
 
+// redact 从错误文本中抹掉 access_token,防止网络错误把含 token 的 URL 带进日志。
+func (c *Client) redact(err error) error {
+	if err != nil && c.token != nil && c.token.AccessToken != "" {
+		msg := err.Error()
+		masked := strings.ReplaceAll(msg, "access_token="+c.token.AccessToken, "access_token=***")
+		if masked != msg {
+			return errors.New(masked)
+		}
+	}
+	return err
+}
+
 func (c *Client) do(out any, req *http.Request, api string) error {
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("%s 请求失败: %w", api, err)
+		return fmt.Errorf("%s 请求失败: %w", api, c.redact(err))
 	}
 	defer resp.Body.Close()
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

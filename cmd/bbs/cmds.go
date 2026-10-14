@@ -16,15 +16,22 @@ import (
 // newFlagSet 为子命令建 FlagSet:--config 必有,额外标志由 extra 回调注册。
 func newFlagSet(name string, extra func(fs *flag.FlagSet)) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
-	fs.String("config", "config.yaml", "配置文件路径")
+	fs.String("config", "", "配置文件路径(默认: BBS_CONFIG 环境变量,再默认 ./config.yaml)")
 	if extra != nil {
 		extra(fs)
 	}
 	return fs
 }
 
+// loadConfig 配置路径优先级:--config 参数 > BBS_CONFIG 环境变量 > ./config.yaml
 func loadConfig(fs *flag.FlagSet) *config.Config {
 	cfgPath := fs.Lookup("config").Value.String()
+	if cfgPath == "" {
+		cfgPath = os.Getenv("BBS_CONFIG")
+	}
+	if cfgPath == "" {
+		cfgPath = "config.yaml"
+	}
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "配置错误:", err)
@@ -79,6 +86,7 @@ func cmdRun(args []string) error {
 	}
 	date := time.Now().Format("20060102")
 	failed := false
+	matched := 0
 	for i := range cfg.Projects {
 		p := &cfg.Projects[i]
 		if proj != "" && p.ID != proj {
@@ -89,6 +97,7 @@ func cmdRun(args []string) error {
 			if task != "" && t.Name != task {
 				continue
 			}
+			matched++
 			if err := eng.RunTask(*p, *t, date); err != nil {
 				log.Error("备份失败", "项目", p.ID, "任务", t.Name, "err", err)
 				failed = true
@@ -98,6 +107,9 @@ func cmdRun(args []string) error {
 				log.Error("清理失败", "项目", p.ID, "任务", t.Name, "err", err)
 			}
 		}
+	}
+	if matched == 0 {
+		return fmt.Errorf("未找到匹配的任务(project=%q task=%q)", proj, task)
 	}
 	if failed {
 		return fmt.Errorf("部分任务失败,详见日志")

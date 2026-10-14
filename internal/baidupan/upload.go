@@ -18,6 +18,9 @@ const chunkSize = 4 << 20 // 4MB
 // UploadFile 官方三步上传:precreate → superfile2 分片 → create。
 // 秒传命中直接返回;分片失败重试 3 次(1s/2s/4s)。
 func (c *Client) UploadFile(remotePath, localPath string) error {
+	if err := c.EnsureToken(); err != nil {
+		return err
+	}
 	f, err := os.Open(localPath)
 	if err != nil {
 		return err
@@ -82,7 +85,7 @@ func (c *Client) UploadFile(remotePath, localPath string) error {
 
 	// 3. superfile2 逐分片上传(带重试)
 	for _, seq := range need {
-		if err := c.uploadChunk(pre.UploadID, seq, localPath); err != nil {
+		if err := c.uploadChunk(pre.UploadID, remotePath, seq, localPath); err != nil {
 			return fmt.Errorf("分片 %d 上传 %s: %w", seq, remotePath, err)
 		}
 	}
@@ -109,8 +112,9 @@ func (c *Client) UploadFile(remotePath, localPath string) error {
 }
 
 // uploadChunk 上传单个分片到 d.pcs.baidu.com,失败重试 3 次(1s/2s/4s)。
-func (c *Client) uploadChunk(uploadID string, seq int, localPath string) error {
+func (c *Client) uploadChunk(uploadID, remotePath string, seq int, localPath string) error {
 	offset := int64(seq) * chunkSize
+	chunk := make([]byte, chunkSize)
 	var lastErr error
 	for attempt := 0; attempt < 4; attempt++ {
 		if attempt > 0 {
@@ -124,14 +128,17 @@ func (c *Client) uploadChunk(uploadID string, seq int, localPath string) error {
 			f.Close()
 			return err
 		}
-		chunk := make([]byte, chunkSize)
-		n, _ := io.ReadFull(f, chunk)
+		n, rerr := io.ReadFull(f, chunk)
 		f.Close()
+		if rerr != nil && rerr != io.EOF && rerr != io.ErrUnexpectedEOF {
+			return rerr
+		}
 
 		params := url.Values{
 			"access_token": {c.token.AccessToken},
 			"method":       {"upload"},
 			"type":         {"tmpfile"},
+			"path":         {remotePath},
 			"uploadid":     {uploadID},
 			"partseq":      {fmt.Sprint(seq)},
 		}
@@ -144,7 +151,7 @@ func (c *Client) uploadChunk(uploadID string, seq int, localPath string) error {
 		req.Header.Set("Content-Type", "application/octet-stream")
 		resp, err := c.HTTP.Do(req)
 		if err != nil {
-			lastErr = err
+			lastErr = c.redact(err)
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))

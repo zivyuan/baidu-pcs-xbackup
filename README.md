@@ -45,6 +45,9 @@ projects:
 ./bbs daemon --config config.yaml
 ```
 
+配置路径优先级:`--config` 参数 > `BBS_CONFIG` 环境变量 > `./config.yaml`。
+daemon 启动后不感知配置变化,改配置需重启进程。
+
 ## 各平台自启动
 
 ### cron(macOS / Linux,单次模式)
@@ -89,6 +92,10 @@ bbs service start
 
 服务名 `bbs`,开机自启,崩溃自动重启(30s/30s/60s)。也可在 services.msc 中管理。
 卸载:`bbs service stop && bbs service uninstall`。
+
+**重要**:服务以 LocalSystem 身份运行,与用户账户隔离——
+- `access_token_file` 与 `log_file` 必须写**绝对路径**(不要 `~`、不要相对路径),且 LocalSystem 可访问;
+- 在用户账户下 `bbs login` 生成的 token 文件,需复制到服务可读的位置(或直接把服务配置指向该绝对路径)。
 
 ## Cygwin 说明
 

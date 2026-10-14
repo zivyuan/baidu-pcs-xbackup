@@ -45,6 +45,8 @@ python probe.py auto     # 自动化场景:建目录/上传探针文件/触发�
 
 - `pcs.baidu.com/rest/2.0/pcs/file`(*method=list/mkdir/delete/download/meta*)
   已对纯 BDUSS 恒返回 **31030 pcs token not exist**,整族废弃。
+- `api/create?a=mkdir` 对已存在路径**不报错而是自动改名新建**(`<名>_时间戳`),
+  必须先列父目录确认存在再创建;`xpan/file?method=create` 则不认 BDUSS(9019)。
 - `pan.baidu.com/api/list`(web=1)需要页面 JS 种的反爬 Cookie(ndut_fmt 等),
   Go 无法直接复用,不要走这条路;`xpan/file?method=meta` 同样不认 BDUSS。
 - Python urllib 即使带全 Cookie 也持续 -6(TLS 指纹风控),探测必须用 Go

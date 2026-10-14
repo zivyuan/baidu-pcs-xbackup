@@ -50,6 +50,9 @@ func NewWebClient(credFile string) *WebClient {
 			// 重定向(User-Agent 头不会被 Go 自动带到新请求)后仍需 UA,
 			// 下载接口 302 到 d.pcs.baidu.com 时保持 netdisk UA。
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
+				if len(via) >= 10 { // 防重定向环
+					return http.ErrUseLastResponse
+				}
 				req.Header.Set("User-Agent", netdiskUA)
 				return nil
 			},
@@ -119,7 +122,7 @@ func (w *WebClient) getBdstoken() (string, error) {
 			BDSToken string `json:"bdstoken"`
 		} `json:"result"`
 	}
-	if err := w.get(&out, "https://pan.baidu.com/api/gettemplatevariable", url.Values{
+	if err := w.getRetry(&out, "https://pan.baidu.com/api/gettemplatevariable", url.Values{
 		"fields": {`["bdstoken"]`}, "clienttype": {"0"},
 	}); err != nil {
 		return "", fmt.Errorf("获取 bdstoken: %w", err)
@@ -205,28 +208,63 @@ func (w *WebClient) getRetry(out any, rawURL string, params url.Values) error {
 	return err
 }
 
-// MkdirAll 逐级创建远端目录(errno -8 已存在视为成功)。
+// MkdirAll 逐级创建远端目录。
+// 注意:api/create 对已存在路径不报错,而是自动改名新建(<名>_时间戳),
+// 必须先列父目录确认不存在再创建,否则重复执行会累积垃圾目录。
 func (w *WebClient) MkdirAll(remoteDir string) error {
 	parts := strings.Split(strings.Trim(remoteDir, "/"), "/")
 	cur := ""
 	for _, p := range parts {
+		parent := cur
 		cur += "/" + p
-		var out struct {
-			Errno int64 `json:"errno"`
+		exists, err := w.dirExists(parent, p)
+		if err != nil {
+			return fmt.Errorf("检查目录 %s: %w", cur, err)
 		}
-		err := w.postForm(&out, "https://pan.baidu.com/api/create", url.Values{
+		if exists {
+			continue
+		}
+		var out struct {
+			Errno int64  `json:"errno"`
+			Path  string `json:"path"`
+		}
+		err = w.postForm(&out, "https://pan.baidu.com/api/create", url.Values{
 			"a": {"mkdir"}, "web": {"1"}, "clienttype": {"0"},
 		}, url.Values{
 			"path": {cur}, "isdir": {"1"},
 		})
 		if err != nil {
 			if IsErrno(err, -8) {
-				continue // 已存在
+				continue // 已存在(兜底)
 			}
 			return fmt.Errorf("创建目录 %s: %w", cur, err)
 		}
+		// 并发竞态下仍可能被改名(返回 path ≠ 请求 path):删除误建目录,视为已存在
+		if out.Path != "" && out.Path != cur {
+			_ = w.Delete([]string{out.Path})
+		}
 	}
 	return nil
+}
+
+// dirExists 列父目录判断子目录是否存在(-9 父目录不存在视为不存在)。
+func (w *WebClient) dirExists(parent, name string) (bool, error) {
+	if parent == "" {
+		parent = "/"
+	}
+	entries, err := w.List(parent)
+	if err != nil {
+		if IsErrno(err, -9) {
+			return false, nil
+		}
+		return false, err
+	}
+	for _, en := range entries {
+		if en.Name == name && en.IsDir {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // List 列目录(xpan 接口;含 -6 退避重试)。

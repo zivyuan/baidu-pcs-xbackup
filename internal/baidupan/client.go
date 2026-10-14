@@ -66,6 +66,12 @@ func (c *Client) callPOST(out any, api string, params url.Values, form url.Value
 	return c.do(out, req, api)
 }
 
+// IsErrno 判断错误是否为指定百度 errno(如 -9 目录/文件不存在)。
+func IsErrno(err error, errno int64) bool {
+	var ae *apiError
+	return errors.As(err, &ae) && ae.Errno == errno
+}
+
 // redact 从错误文本中抹掉 access_token,防止网络错误把含 token 的 URL 带进日志。
 func (c *Client) redact(err error) error {
 	if err != nil && c.token != nil && c.token.AccessToken != "" {

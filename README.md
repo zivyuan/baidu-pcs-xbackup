@@ -19,12 +19,11 @@
 ```yaml
 app_key: "你的AppKey"
 secret_key: "你的SecretKey"
+app_name: "项目数据备份"           # 备份根目录名(建在网盘根下);留空 = /apps
 access_token_file: "~/.bbs/token.json"
-remote_root: ""                   # 留空 = 网盘根目录(项目目录直接建在根下)
 log_file: ""                      # daemon 模式默认 ./bbs.log
 projects:
   - id: davidoff
-    description: "项目说明"        # 可选,写入项目目录 README.md
     tasks:
       - name: realdata
         source: /data/realdata    # 文件或目录
@@ -113,6 +112,6 @@ make release  # dist + 打包压缩
 
 ## 注意事项
 
-- 个人应用 token 可直接在网盘根目录创建目录(实测验证),无需依赖 `/apps/<应用名>` 应用目录。
+- 目录结构:`/<app_name>/<项目id>/<日期>/<任务名>`;`app_name` 留空则用 `/apps`,显式配置 `remote_root` 时优先。
 - access_token 约 30 天过期,工具自动用 refresh_token 续期;refresh_token 失效时重新 `bbs login`。
 - 日志为结构化文本,token 与 secret 永不写入日志。

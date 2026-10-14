@@ -19,16 +19,16 @@ type Task struct {
 }
 
 type Project struct {
-	ID          string `yaml:"id"`
-	Description string `yaml:"description"` // 写入项目目录 README.md,便于在网盘里了解用途
-	Tasks       []Task `yaml:"tasks"`
+	ID    string `yaml:"id"`
+	Tasks []Task `yaml:"tasks"`
 }
 
 type Config struct {
 	AppKey          string    `yaml:"app_key"`
 	SecretKey       string    `yaml:"secret_key"`
+	AppName         string    `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
 	AccessTokenFile string    `yaml:"access_token_file"`
-	RemoteRoot      string    `yaml:"remote_root"` // 备份根目录,空 = 网盘根目录(项目目录直接建在根下)
+	RemoteRoot      string    `yaml:"remote_root"` // 显式指定备份根目录,优先于 app_name
 	LogFile         string    `yaml:"log_file"`
 	Projects        []Project `yaml:"projects"`
 }
@@ -81,10 +81,16 @@ func NormalizePath(p string) string {
 	return p
 }
 
-// Root 返回远端备份根目录:remote_root 优先,空则为网盘根目录(返回空串,
-// 路径拼接时自然形如 "/<项目id>/...")。
+// Root 返回远端备份根目录,优先级:remote_root > app_name(建在网盘根下,
+// 如 /项目数据备份)> /apps(保留容器目录,已存在无需创建)。
 func (c *Config) Root() string {
-	return strings.TrimSuffix(c.RemoteRoot, "/")
+	if r := strings.TrimSuffix(c.RemoteRoot, "/"); r != "" {
+		return r
+	}
+	if c.AppName != "" {
+		return "/" + c.AppName
+	}
+	return "/apps"
 }
 
 // ParseDailyAt 解析 24 小时制 "HH:MM"。
@@ -109,6 +115,11 @@ func Load(path string) (*Config, error) {
 	}
 	if c.AppKey == "" || c.SecretKey == "" {
 		return nil, fmt.Errorf("app_key / secret_key 不能为空")
+	}
+	if c.AppName != "" {
+		if err := validName("app_name", c.AppName); err != nil {
+			return nil, err
+		}
 	}
 	if c.AccessTokenFile == "" {
 		c.AccessTokenFile = "~/.bbs/token.json"

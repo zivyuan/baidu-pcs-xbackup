@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/zivyuan/baidu-backup-store/internal/baidupan"
 	"github.com/zivyuan/baidu-backup-store/internal/config"
 )
 
@@ -46,7 +47,7 @@ func (e *Engine) ensureFingerprint(p config.Project, t config.Task) error {
 	name := t.Name + ".fingerprint"
 	projDir := e.Root + "/" + p.ID
 	entries, err := e.Pan.List(projDir)
-	if err != nil {
+	if err != nil && !baidupan.IsErrno(err, -9) { // -9: 目录不存在,视为未认领
 		return fmt.Errorf("读取项目目录: %w", err)
 	}
 	for _, en := range entries {

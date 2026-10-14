@@ -33,8 +33,30 @@ type Config struct {
 	Projects        []Project `yaml:"projects"`
 }
 
-var idRe = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 var dailyAtRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
+
+// validName 校验项目 id / 任务名:允许网盘合法目录名(中文、空格、符号等),
+// 仅禁止路径分隔符、控制字符、"."/".." 与空名、超长名。
+func validName(kind, name string) error {
+	if name == "" {
+		return fmt.Errorf("%s 不能为空", kind)
+	}
+	if name == "." || name == ".." {
+		return fmt.Errorf("%s %q 非法", kind, name)
+	}
+	if len(name) > 255 {
+		return fmt.Errorf("%s %q 超过 255 字节", kind, name)
+	}
+	if strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("%s %q 不能包含 / 或 \\", kind, name)
+	}
+	for _, r := range name {
+		if r < 0x20 || r == 0x7f {
+			return fmt.Errorf("%s %q 不能包含控制字符", kind, name)
+		}
+	}
+	return nil
+}
 
 // NormalizePath 展开 ~,并把 Cygwin 风格 /cygdrive/<盘符>/... 转为 Windows 路径。
 func NormalizePath(p string) string {
@@ -103,16 +125,16 @@ func Load(path string) (*Config, error) {
 	}
 	for i := range c.Projects {
 		p := &c.Projects[i]
-		if !idRe.MatchString(p.ID) {
-			return nil, fmt.Errorf("项目 id %q 仅允许字母数字下划线连字符", p.ID)
+		if err := validName("项目 id", p.ID); err != nil {
+			return nil, err
 		}
 		if len(p.Tasks) == 0 {
 			return nil, fmt.Errorf("项目 %s 至少需要一个任务", p.ID)
 		}
 		for j := range p.Tasks {
 			t := &p.Tasks[j]
-			if !idRe.MatchString(t.Name) {
-				return nil, fmt.Errorf("任务名 %q 仅允许字母数字下划线连字符", t.Name)
+			if err := validName("任务名", t.Name); err != nil {
+				return nil, err
 			}
 			if t.Source == "" {
 				return nil, fmt.Errorf("任务 %s 缺少 source", t.Name)

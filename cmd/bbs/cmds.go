@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/zivyuan/baidu-backup-store/internal/backup"
@@ -42,7 +43,10 @@ func loadConfig(fs *flag.FlagSet) *config.Config {
 
 func newEngine(cfg *config.Config, log *slog.Logger) *backup.Engine {
 	pan := baidupan.New(cfg.AppKey, cfg.SecretKey, cfg.AccessTokenFile)
-	return backup.New(pan, cfg.Root(), log)
+	eng := backup.New(pan, cfg.Root(), log)
+	// 机器识别码与 token 同目录(默认 ~/.bbs/fingerprint)
+	eng.FingerprintFile = filepath.Join(filepath.Dir(cfg.AccessTokenFile), "fingerprint")
+	return eng
 }
 
 func setupLogger(cfg *config.Config, daemon bool) *slog.Logger {

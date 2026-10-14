@@ -3,6 +3,8 @@ package baidupan
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
@@ -14,6 +16,7 @@ type Entry struct {
 	Name  string
 	IsDir bool
 	Size  int64
+	FsID  int64 // 远端文件 id,下载时用于换取 dlink
 }
 
 // MkdirAll 逐级创建远端目录(errno -8 已存在视为成功)。
@@ -65,18 +68,60 @@ func (c *Client) List(dir string) ([]Entry, error) {
 				ServerFilename string `json:"server_filename"`
 				IsDir          int    `json:"isdir"`
 				Size           int64  `json:"size"`
+				FsID           int64  `json:"fs_id"`
 			} `json:"list"`
 		}
 		if err := c.callGET(&out, "/rest/2.0/xpan/file", params); err != nil {
 			return nil, fmt.Errorf("列目录 %s: %w", dir, err)
 		}
 		for _, it := range out.List {
-			all = append(all, Entry{Path: it.Path, Name: it.ServerFilename, IsDir: it.IsDir == 1, Size: it.Size})
+			all = append(all, Entry{Path: it.Path, Name: it.ServerFilename, IsDir: it.IsDir == 1, Size: it.Size, FsID: it.FsID})
 		}
 		if len(out.List) < 1000 {
 			return all, nil
 		}
 	}
+}
+
+// Download 按 fs_id 取回文件内容(仅小文件:fingerprint 比对用)。
+// 链路:filemetas 换 dlink → GET dlink;必须带 access_token 且
+// User-Agent 为 pan.baidu.com,否则 403。列表接口对小文件返回的是
+// 混淆 md5(非真实内容 md5),不能用于内容比对。
+func (c *Client) Download(fsID int64) ([]byte, error) {
+	var meta struct {
+		Info []struct {
+			Dlink string `json:"dlink"`
+		} `json:"info"`
+	}
+	if err := c.callGET(&meta, "/rest/2.0/xpan/file", url.Values{
+		"method": {"filemetas"},
+		"fsids":  {"[" + strconv.FormatInt(fsID, 10) + "]"}, // 需 JSON 数组格式
+		"dlink":  {"1"},
+	}); err != nil {
+		return nil, fmt.Errorf("获取下载链接(fs_id=%d): %w", fsID, err)
+	}
+	if len(meta.Info) == 0 || meta.Info[0].Dlink == "" {
+		return nil, fmt.Errorf("获取下载链接失败: fs_id=%d 无 dlink", fsID)
+	}
+	u := meta.Info[0].Dlink + "&access_token=" + url.QueryEscape(c.token.AccessToken)
+	req, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", "pan.baidu.com")
+	resp, err := c.HTTP.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("下载失败: %w", c.redact(err))
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("下载失败: HTTP %d %s", resp.StatusCode, string(body))
+	}
+	return body, nil
 }
 
 // Delete 删除文件/目录(目录整体递归删除)。

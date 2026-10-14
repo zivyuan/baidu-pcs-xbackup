@@ -15,10 +15,11 @@ import (
 
 // Engine 备份引擎:执行单个任务的备份并打完成标志。
 type Engine struct {
-	Pan      *baidupan.Client
-	Root     string
-	Log      *slog.Logger
-	dirCache map[string]bool // 已确认存在的远端目录,避免重复 MkdirAll 触发限流
+	Pan             *baidupan.Client
+	Root            string
+	Log             *slog.Logger
+	FingerprintFile string            // 本机识别码存放路径(与 token 同目录)
+	dirCache        map[string]bool // 已确认存在的远端目录,避免重复 MkdirAll 触发限流
 }
 
 func New(pan *baidupan.Client, root string, log *slog.Logger) *Engine {
@@ -69,6 +70,9 @@ func (e *Engine) IsDone(p config.Project, t config.Task, date string) (bool, err
 // RunTask 执行单个任务的备份。
 // 完成标志:raw → <日期>/<任务名>/_SUCCESS;archive → <日期>/<任务名>.tar.gz 存在。
 func (e *Engine) RunTask(p config.Project, t config.Task, date string) error {
+	if err := e.ensureFingerprint(p, t); err != nil {
+		return err
+	}
 	dir := e.dateDir(p, date)
 	if done, _ := e.IsDone(p, t, date); done {
 		e.Log.Info("当日已备份,跳过", "项目", p.ID, "任务", t.Name)

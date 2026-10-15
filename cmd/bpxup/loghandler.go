@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // conciseHandler 精简文本日志格式:
@@ -32,6 +33,9 @@ func (h *conciseHandler) Enabled(_ context.Context, l slog.Level) bool {
 
 func (h *conciseHandler) Handle(_ context.Context, r slog.Record) error {
 	var b []byte
+	if r.Time.IsZero() {
+		r.Time = time.Now() // 直接构造 Record 未盖章时兜底,避免打出 0001-01-01
+	}
 	b = r.Time.AppendFormat(b, "2006-01-02 15:04:05")
 	switch {
 	case r.Level >= slog.LevelError:

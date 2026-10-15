@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -18,6 +19,10 @@ type Client struct {
 	TokenFile string
 	HTTP      *http.Client
 	token     *Token
+
+	statesLoaded bool                  // 断点文件是否已加载
+	states       map[string]uploadState // 远端路径 → 上传断点
+	stateMu      sync.Mutex
 }
 
 func New(appKey, secretKey, tokenFile string) *Client {

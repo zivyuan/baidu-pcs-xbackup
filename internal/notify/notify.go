@@ -13,14 +13,16 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const (
-	aggWindow   = 60 * time.Second // 聚合窗口:自最后一条失败事件起静默满 60s 发汇总
-	sendTimeout = 5 * time.Second
-	sendRetries = 2 // 发送失败重试 1 次(共 2 次)
-	maxErrLen   = 200
-	maxAggItems = 20 // 汇总消息最多列出条数(企业微信 markdown 有长度限制)
+	aggWindow       = 60 * time.Second // 聚合窗口:自最后一条失败事件起静默满 60s 发汇总
+	sendTimeout     = 5 * time.Second
+	sendRetries     = 2 // 发送失败重试 1 次(共 2 次)
+	maxErrLen       = 200
+	maxAggItems     = 20   // 汇总消息最多列出条数(企业微信 markdown 有长度限制)
+	maxContentBytes = 4000 // 消息体字节上限(企业微信 markdown 限 4096 字节,留余量给截断标记)
 )
 
 type event struct {
@@ -115,6 +117,7 @@ func (n *Notifier) loop(webhook string) {
 
 // post 发送 markdown 消息,失败重试 1 次;仍失败仅记日志。
 func (n *Notifier) post(webhook, content string) {
+	content = limitContent(content)
 	payload, _ := json.Marshal(map[string]any{
 		"msgtype":  "markdown",
 		"markdown": map[string]string{"content": content},
@@ -187,8 +190,22 @@ func aggregateMsg(evs []event) string {
 	return b.String()
 }
 
+// limitContent 按 UTF-8 边界截断消息体,防止超过企业微信 markdown 字节上限。
+func limitContent(content string) string {
+	b := []byte(content)
+	if len(b) <= maxContentBytes {
+		return content
+	}
+	i := maxContentBytes
+	for i > 0 && !utf8.RuneStart(b[i]) { // 回退到 rune 起始字节,避免截断半个字符
+		i--
+	}
+	return string(b[:i]) + "\n> ……(消息过长已截断)"
+}
+
 // truncate 截断错误摘要,防止超长错误撑爆消息。
 func truncate(s string) string {
+	s = strings.ReplaceAll(s, "\n", " ") // 换行会跳出引用块,打乱排版
 	r := []rune(s)
 	if len(r) > maxErrLen {
 		return string(r[:maxErrLen]) + "…"

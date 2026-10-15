@@ -11,6 +11,8 @@ import (
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/notify"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/retry"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
@@ -85,6 +87,8 @@ func cmdRun(args []string) error {
 
 	log := setupLogger(cfg, false)
 	eng := newEngine(cfg, log)
+	notif := notify.New(cfg.WebhookURL, log)
+	defer notif.Close() // 退出前 flush 未发送的聚合汇总
 	if err := eng.Pan.EnsureToken(); err != nil {
 		return err
 	}
@@ -102,8 +106,17 @@ func cmdRun(args []string) error {
 				continue
 			}
 			matched++
-			if err := eng.RunTask(*p, *t, date); err != nil {
-				log.Error("备份失败", "项目", p.ID, "任务", t.Name, "err", err)
+			runErr := retry.Do(cfg.Retry.MaxAttempts, time.Duration(cfg.Retry.Interval), func() error {
+				err := eng.RunTask(*p, *t, date)
+				if err != nil {
+					log.Warn("备份失败", "项目", p.ID, "任务", t.Name, "err", err)
+				}
+				return err
+			})
+			if runErr != nil {
+				log.Error("备份重试耗尽,任务终止,等待人工干预",
+					"项目", p.ID, "任务", t.Name, "尝试", cfg.Retry.MaxAttempts, "err", runErr)
+				notif.Failure(p.ID, t.Name, cfg.Retry.MaxAttempts, runErr.Error())
 				failed = true
 				continue
 			}

@@ -3,9 +3,51 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
+	"strings"
+	"time"
 )
 
-var version = "0.1.0"
+// version 由构建注入:make build 默认取 git describe --tags --always --dirty,
+// make publish VERSION=x.y.z 注入干净的发布版本;直接 go build 时为 dev。
+var version = "dev"
+
+// versionString 组合完整版本信息:版本号 + git 提交 + 构建时间。
+// 提交与时间来自 Go 内建 VCS 打标(debug.ReadBuildInfo),二进制拷贝到
+// 服务器后仍可追溯;非 git 环境构建时仅有版本号。
+func versionString() string {
+	s := "bpxup " + version
+	var commit, built, dirty string
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, kv := range info.Settings {
+			switch kv.Key {
+			case "vcs.revision":
+				if len(kv.Value) >= 12 {
+					commit = kv.Value[:12]
+				}
+			case "vcs.time":
+				if t, err := time.Parse(time.RFC3339, kv.Value); err == nil {
+					built = t.Local().Format("2006-01-02 15:04")
+				}
+			case "vcs.modified":
+				if kv.Value == "true" {
+					dirty = "*"
+				}
+			}
+		}
+	}
+	var extra []string
+	if commit != "" {
+		extra = append(extra, "commit "+commit+dirty)
+	}
+	if built != "" {
+		extra = append(extra, "built "+built)
+	}
+	if len(extra) > 0 {
+		s += " (" + strings.Join(extra, ", ") + ")"
+	}
+	return s
+}
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `bpxup - 百度网盘自动备份工具
@@ -35,7 +77,7 @@ func main() {
 	var err error
 	switch os.Args[1] {
 	case "version":
-		fmt.Println("bpxup", version)
+		fmt.Println(versionString())
 	case "login":
 		err = cmdLogin(os.Args[2:])
 	case "setup":

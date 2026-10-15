@@ -50,6 +50,32 @@ func (p *prompter) ask(label, def string) string {
 	}
 }
 
+// askSecret 敏感项:不回显已有值(防泄露到屏幕/终端记录);
+// 已有值时回车保留原值,否则必须输入。
+func (p *prompter) askSecret(label, existing string) string {
+	for {
+		if existing != "" {
+			fmt.Printf("%s(回车保留原值): ", label)
+		} else {
+			fmt.Printf("%s: ", label)
+		}
+		line, err := p.in.ReadString('\n')
+		if err != nil && line == "" {
+			fmt.Println("\n输入中断,已取消")
+			os.Exit(1)
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			if existing != "" {
+				return existing
+			}
+			fmt.Println("  不能为空,请重新输入")
+			continue
+		}
+		return line
+	}
+}
+
 // askOptional 同 ask,但允许留空(返回空串)。
 func (p *prompter) askOptional(label, def string) string {
 	if def != "" {
@@ -162,7 +188,7 @@ func cmdSetup(args []string) error {
 
 	fmt.Println("== 必选配置 ==")
 	cfg.AppKey = p.ask("AppKey(百度网盘开放平台应用 Key)", cfg.AppKey)
-	cfg.SecretKey = p.ask("SecretKey(应用 Secret)", cfg.SecretKey)
+	cfg.SecretKey = p.askSecret("SecretKey(应用 Secret)", cfg.SecretKey)
 	cfg.AppName = p.askOptional("app_name(网盘里的备份根目录名,留空用 /apps)", defStr(cfg.AppName, "项目数据备份"))
 
 	// 第一个项目(可跳)

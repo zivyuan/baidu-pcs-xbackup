@@ -1,5 +1,6 @@
 BINARY := bpxup
-VERSION ?= dev
+# 开发构建默认取 git 真实位置(上个 tag+领先提交数+sha+是否脏),仅无 git 信息时兜底 dev
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.version=$(VERSION)
 
 build:

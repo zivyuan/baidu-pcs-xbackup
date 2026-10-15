@@ -12,6 +12,8 @@
 - 幂等:当日已备份则跳过,cron / Task Scheduler / daemon 混跑安全
 - 常驻模式(`bpxup daemon`),Windows 上可注册为系统服务(故障自动重启)
 - 失败有界重试(默认 3 次),耗尽后任务终止并(可选)企业微信 webhook 告警,等待人工干预
+- 完整性对账:上传前与远端比对(存在 + 大小一致),只补缺失/不一致的文件——中断重跑即续传;上传完成后再复核一轮,全一致才打完成标志,防接口假成功误判
+- `bpxup verify` 手动巡检:对账远端备份完整性,默认只报告,`--fix` 重传修复
 
 ## 配置
 
@@ -47,6 +49,9 @@ projects:
 
 # 3. 常驻调度
 ./bpxup daemon --config config.yaml
+
+# 4. 备份完整性巡检(默认校验每个任务最新一份;--fix 重传修复差异)
+./bpxup verify --config config.yaml [--project davidoff] [--task realdata] [--date 20261015] [--fix]
 ```
 
 配置路径优先级:`--config` 参数 > `BPXUP_CONFIG` 环境变量 > `./config.yaml`。

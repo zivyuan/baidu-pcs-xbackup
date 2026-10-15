@@ -134,6 +134,82 @@ func cmdRun(args []string) error {
 	return nil
 }
 
+// cmdVerify 手动对账远端备份:默认只报告差异,--fix 才重传修复。
+// 退出码非 0 表示有差异(或 --fix 后仍修不完)/校验失败,便于脚本巡检。
+func cmdVerify(args []string) error {
+	var proj, task, date string
+	var fix bool
+	fs := newFlagSet("verify", func(fs *flag.FlagSet) {
+		fs.StringVar(&proj, "project", "", "只校验指定项目")
+		fs.StringVar(&task, "task", "", "只校验指定任务")
+		fs.StringVar(&date, "date", "", "校验指定日期(YYYYMMDD),默认每个任务最新一份")
+		fs.BoolVar(&fix, "fix", false, "发现不一致时重传修复")
+	})
+	fs.Parse(args)
+	cfg := loadConfig(fs)
+
+	log := setupLogger(cfg, false)
+	eng := newEngine(cfg, log)
+	if err := eng.Pan.EnsureToken(); err != nil {
+		return err
+	}
+	matched, bad := 0, false
+	for i := range cfg.Projects {
+		p := &cfg.Projects[i]
+		if proj != "" && p.ID != proj {
+			continue
+		}
+		d := date
+		if d == "" {
+			latest, err := eng.LatestDate(*p)
+			if err != nil {
+				log.Error("获取最新备份日期失败", "项目", p.ID, "err", err)
+				bad = true
+				continue
+			}
+			if latest == "" {
+				log.Warn("无历史备份,跳过", "项目", p.ID)
+				continue
+			}
+			d = latest
+		}
+		for j := range p.Tasks {
+			t := &p.Tasks[j]
+			if task != "" && t.Name != task {
+				continue
+			}
+			matched++
+			var rels []string
+			err := retry.Do(cfg.Retry.MaxAttempts, time.Duration(cfg.Retry.Interval), func() error {
+				var verr error
+				rels, verr = eng.VerifyTask(*p, *t, d, fix)
+				return verr
+			})
+			if err != nil {
+				log.Error("校验失败", "项目", p.ID, "任务", t.Name, "日期", d, "err", err)
+				bad = true
+				continue
+			}
+			if len(rels) == 0 {
+				fmt.Printf("[%s/%s] %s 一致\n", p.ID, t.Name, d)
+				continue
+			}
+			bad = true
+			fmt.Printf("[%s/%s] %s 不一致 %d 个:\n", p.ID, t.Name, d, len(rels))
+			for _, r := range rels {
+				fmt.Println("  " + r)
+			}
+		}
+	}
+	if matched == 0 {
+		return fmt.Errorf("未找到匹配的任务(project=%q task=%q)", proj, task)
+	}
+	if bad {
+		return fmt.Errorf("存在不一致或校验失败,详见输出")
+	}
+	return nil
+}
+
 func cmdDaemon(args []string) error {
 	fs := newFlagSet("daemon", nil)
 	fs.Parse(args)

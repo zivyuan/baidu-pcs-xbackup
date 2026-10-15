@@ -5,8 +5,6 @@ import (
 	"io"
 	"log/slog"
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
@@ -93,66 +91,40 @@ func (e *Engine) RunTask(p config.Project, t config.Task, date string) error {
 		if err := TarGz(t.Source, tmpPath); err != nil {
 			return fmt.Errorf("打包: %w", err)
 		}
-		remote := dir + "/" + t.Name + ".tar.gz"
-		if err := e.Pan.UploadFile(remote, tmpPath); err != nil {
+		st, err := os.Stat(tmpPath)
+		if err != nil {
 			return err
+		}
+		remote := dir + "/" + t.Name + ".tar.gz"
+		ok, err := e.remoteSizeMatches(remote, st.Size())
+		if err != nil {
+			return err
+		}
+		if !ok { // 已存在且大小一致则跳过(重跑续传),否则上传
+			if err := e.Pan.UploadFile(remote, tmpPath); err != nil {
+				return err
+			}
+			// 复核:防 create 假成功
+			if ok, err := e.remoteSizeMatches(remote, st.Size()); err != nil {
+				return err
+			} else if !ok {
+				return fmt.Errorf("archive 复核不一致: %s", remote)
+			}
 		}
 		e.Log.Info("archive 上传完成", "项目", p.ID, "任务", t.Name, "远端", remote)
 	case "raw":
-		if err := e.runRaw(p, t, dir); err != nil {
+		uploaded, total, err := e.syncRaw(dir+"/"+t.Name, t.Source)
+		if err != nil {
 			return err
+		}
+		if total == 0 {
+			e.Log.Warn("raw 源目录为空,未上传任何文件", "项目", p.ID, "任务", t.Name)
 		}
 		if err := e.markSuccess(dir + "/" + t.Name); err != nil {
 			return err
 		}
+		e.Log.Info("raw 上传完成", "项目", p.ID, "任务", t.Name, "文件数", total, "本次上传", uploaded)
 	}
-	return nil
-}
-
-func (e *Engine) runRaw(p config.Project, t config.Task, dir string) error {
-	taskDir := dir + "/" + t.Name
-	if err := e.ensureDir(taskDir); err != nil { // 源目录只有文件没有子目录时也要有任务目录
-		return err
-	}
-	root := filepath.Clean(t.Source)
-	var count int
-	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, path)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		rel = filepath.ToSlash(rel)
-		if fi.IsDir() {
-			return e.ensureDir(taskDir + "/" + rel)
-		}
-		if !fi.Mode().IsRegular() {
-			return nil
-		}
-		remote := taskDir + "/" + rel
-		if idx := strings.LastIndex(rel, "/"); idx >= 0 {
-			if err := e.ensureDir(taskDir + "/" + rel[:idx]); err != nil {
-				return err
-			}
-		}
-		if err := e.Pan.UploadFile(remote, path); err != nil {
-			return fmt.Errorf("上传 %s: %w", rel, err)
-		}
-		count++
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	if count == 0 {
-		e.Log.Warn("raw 源目录为空,未上传任何文件", "项目", p.ID, "任务", t.Name)
-	}
-	e.Log.Info("raw 上传完成", "项目", p.ID, "任务", t.Name, "文件数", count)
 	return nil
 }
 

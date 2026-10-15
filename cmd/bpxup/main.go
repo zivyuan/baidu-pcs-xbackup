@@ -16,6 +16,7 @@ func usage() {
 命令:
   login                     设备码授权,获取并保存 token
   run                       立即执行备份+清理(适合 cron/Task Scheduler)
+  verify                    对账远端备份完整性(--fix 重传修复)
   daemon                    常驻调度模式
   service <install|uninstall|start|stop>   Windows 服务管理(仅 Windows)
   version                   显示版本
@@ -38,6 +39,8 @@ func main() {
 		err = cmdLogin(os.Args[2:])
 	case "run":
 		err = cmdRun(os.Args[2:])
+	case "verify":
+		err = cmdVerify(os.Args[2:])
 	case "daemon":
 		err = cmdDaemon(os.Args[2:])
 	case "service":

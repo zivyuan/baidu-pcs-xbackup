@@ -43,12 +43,12 @@ func loadConfig(fs *flag.FlagSet) *config.Config {
 	return cfg
 }
 
-func newEngine(cfg *config.Config, log *slog.Logger) *backup.Engine {
+func newEngine(cfg *config.Config, log *slog.Logger) (*backup.Engine, *baidupan.Client) {
 	pan := baidupan.New(cfg.AppKey, cfg.SecretKey, cfg.AccessTokenFile)
 	eng := backup.New(pan, cfg.Root(), log)
 	// 机器识别码与 token 同目录(默认 ~/.bpxup/fingerprint)
 	eng.FingerprintFile = filepath.Join(filepath.Dir(cfg.AccessTokenFile), "fingerprint")
-	return eng
+	return eng, pan
 }
 
 func setupLogger(cfg *config.Config, daemon bool) *slog.Logger {
@@ -86,10 +86,10 @@ func cmdRun(args []string) error {
 	cfg := loadConfig(fs)
 
 	log := setupLogger(cfg, false)
-	eng := newEngine(cfg, log)
+	eng, pan := newEngine(cfg, log)
 	notif := notify.New(cfg.WebhookURL, log)
 	defer notif.Close() // 退出前 flush 未发送的聚合汇总
-	if err := eng.Pan.EnsureToken(); err != nil {
+	if err := pan.EnsureToken(); err != nil {
 		return err
 	}
 	date := time.Now().Format("20060102")
@@ -149,8 +149,8 @@ func cmdVerify(args []string) error {
 	cfg := loadConfig(fs)
 
 	log := setupLogger(cfg, false)
-	eng := newEngine(cfg, log)
-	if err := eng.Pan.EnsureToken(); err != nil {
+	eng, pan := newEngine(cfg, log)
+	if err := pan.EnsureToken(); err != nil {
 		return err
 	}
 	matched, bad := 0, false
@@ -216,10 +216,10 @@ func cmdDaemon(args []string) error {
 	cfg := loadConfig(fs)
 
 	log := setupLogger(cfg, true)
-	eng := newEngine(cfg, log)
+	eng, pan := newEngine(cfg, log)
 	notif := notify.New(cfg.WebhookURL, log)
 	defer notif.Close()
-	if err := eng.Pan.EnsureToken(); err != nil {
+	if err := pan.EnsureToken(); err != nil {
 		return err
 	}
 	return scheduler.Run(cfg, eng, log, notif)

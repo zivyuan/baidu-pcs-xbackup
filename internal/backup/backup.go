@@ -11,16 +11,26 @@ import (
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/retention"
 )
 
+// PanClient Engine 所需的最小网盘接口(便于测试注入假实现);
+// *baidupan.Client 天然满足。
+type PanClient interface {
+	List(dir string) ([]baidupan.Entry, error)
+	MkdirAll(dir string) error
+	UploadFile(remotePath, localPath string) error
+	Download(fsID int64) ([]byte, error)
+	Delete(paths []string) error
+}
+
 // Engine 备份引擎:执行单个任务的备份并打完成标志。
 type Engine struct {
-	Pan             *baidupan.Client
+	Pan             PanClient
 	Root            string
 	Log             *slog.Logger
 	FingerprintFile string            // 本机识别码存放路径(与 token 同目录)
 	dirCache        map[string]bool // 已确认存在的远端目录,避免重复 MkdirAll 触发限流
 }
 
-func New(pan *baidupan.Client, root string, log *slog.Logger) *Engine {
+func New(pan PanClient, root string, log *slog.Logger) *Engine {
 	return &Engine{Pan: pan, Root: root, Log: log, dirCache: map[string]bool{}}
 }
 

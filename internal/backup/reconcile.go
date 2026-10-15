@@ -123,10 +123,14 @@ func (e *Engine) syncRaw(taskDir, source string) (uploaded, total int, err error
 }
 
 // remoteSizeMatches 远端文件存在且大小与 size 一致时返回 true。
+// 父目录不存在(备份整体缺失)不算错误,返回 false。
 func (e *Engine) remoteSizeMatches(remotePath string, size int64) (bool, error) {
 	idx := strings.LastIndex(remotePath, "/")
 	entries, err := e.Pan.List(remotePath[:idx])
 	if err != nil {
+		if baidupan.IsErrno(err, -9) {
+			return false, nil
+		}
 		return false, err
 	}
 	name := remotePath[idx+1:]
@@ -170,6 +174,9 @@ func (e *Engine) VerifyTask(p config.Project, t config.Task, date string, fix bo
 		}
 		if !fix {
 			return bad, nil
+		}
+		if err := e.ensureDir(dir); err != nil { // 日期目录可能整体缺失
+			return nil, err
 		}
 		if err := e.Pan.UploadFile(remote, tmpPath); err != nil {
 			return nil, err

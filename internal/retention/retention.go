@@ -9,9 +9,15 @@ import (
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
 )
 
+// PanAPI retention 所需的最小网盘接口(便于测试注入假实现)。
+type PanAPI interface {
+	List(dir string) ([]baidupan.Entry, error)
+	Delete(paths []string) error
+}
+
 // Cleanup 保留任务最近 retention 个备份,删除粒度为任务级:
 // 仅删 /<日期>/<任务名>(raw)或 /<日期>/<任务名>.tar.gz(archive),不动同日期其他任务的数据。
-func Cleanup(pan *baidupan.Client, root string, p config.Project, t config.Task, log *slog.Logger) error {
+func Cleanup(pan PanAPI, root string, p config.Project, t config.Task, log *slog.Logger) error {
 	projDir := root + "/" + p.ID
 	entries, err := pan.List(projDir)
 	if err != nil {
@@ -52,7 +58,7 @@ func Cleanup(pan *baidupan.Client, root string, p config.Project, t config.Task,
 }
 
 // taskHasBackup 判断日期目录中是否存在该任务的数据(存在即算一份,含未完成的残留)。
-func taskHasBackup(pan *baidupan.Client, datePath string, t config.Task) (bool, error) {
+func taskHasBackup(pan PanAPI, datePath string, t config.Task) (bool, error) {
 	entries, err := pan.List(datePath)
 	if err != nil {
 		return false, err
@@ -70,7 +76,7 @@ func taskHasBackup(pan *baidupan.Client, datePath string, t config.Task) (bool, 
 
 // pruneEmptyDateDirs 删除已空的日期目录,失败静默(不影响主流程)。
 // 删除任务数据后网盘列表存在短暂最终一致,故带重试。
-func pruneEmptyDateDirs(pan *baidupan.Client, projDir string, dates []string) {
+func pruneEmptyDateDirs(pan PanAPI, projDir string, dates []string) {
 	for _, d := range dates {
 		dir := projDir + "/" + d
 		for attempt := 0; attempt < 3; attempt++ {

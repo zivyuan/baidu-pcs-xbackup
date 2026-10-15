@@ -72,6 +72,11 @@ func IsErrno(err error, errno int64) bool {
 	return errors.As(err, &ae) && ae.Errno == errno
 }
 
+// NewErrno 构造携带 errno 的错误(测试模拟"目录不存在"等场景用)。
+func NewErrno(errno int64, msg string) error {
+	return &apiError{Errno: errno, Msg: msg}
+}
+
 // redact 从错误文本中抹掉 access_token,防止网络错误把含 token 的 URL 带进日志。
 func (c *Client) redact(err error) error {
 	if err != nil && c.token != nil && c.token.AccessToken != "" {

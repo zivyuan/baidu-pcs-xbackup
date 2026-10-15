@@ -67,7 +67,9 @@ retry:
 | `internal/notify`(新) | 聚合 notifier + 企业微信 markdown 发送 | 标准库 |
 | `internal/config` | 新增 `webhook_url`、`retry` 段解析/默认值/校验 | yaml |
 | `cmd/bpxup/cmds.go` | run 循环套 retry.Do,失败事件喂 notifier,退出前 notify.Close() | retry, notify |
-| `internal/scheduler/scheduler.go` | 有界重试 + 当日放弃标记 + 失败事件喂 notifier | retry, notify |
+| `internal/scheduler/scheduler.go` | 有界重试 + 当日放弃标记 + 失败事件喂 notifier | notify |
+
+注:scheduler 不复用 retry.Do(其内部 sleep 会阻塞调度循环、卡住其他任务),改用自身状态机计次实现同样的有界语义(尝试计数 + nextRetry)。
 
 Engine(`internal/backup`)不动:重试策略归调用方,通知归 notify 包,保持边界。
 

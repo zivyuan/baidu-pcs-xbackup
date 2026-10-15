@@ -141,10 +141,12 @@ func cmdDaemon(args []string) error {
 
 	log := setupLogger(cfg, true)
 	eng := newEngine(cfg, log)
+	notif := notify.New(cfg.WebhookURL, log)
+	defer notif.Close()
 	if err := eng.Pan.EnsureToken(); err != nil {
 		return err
 	}
-	return scheduler.Run(cfg, eng, log)
+	return scheduler.Run(cfg, eng, log, notif)
 }
 
 func cmdService(args []string) error {

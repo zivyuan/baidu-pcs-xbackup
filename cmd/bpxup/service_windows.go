@@ -14,6 +14,7 @@ import (
 	"golang.org/x/sys/windows/svc/mgr"
 
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/notify"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
@@ -34,13 +35,18 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 	// 立刻上报 Running,token 校验放进工作协程:
 	// EnsureToken 可能发起网络请求(刷新 token),放在上报前会拖过 SCM 的 30 秒连接窗口(1053)。
 	done := make(chan error, 1)
+	notif := notify.New(cfg.WebhookURL, log)
 	go func() {
 		if err := pan.EnsureToken(); err != nil {
 			log.Error("token 无效", "err", err)
 			done <- err
+			notif.Close()
 			return
 		}
-		done <- scheduler.Run(cfg, eng, log)
+		// scheduler.Run 返回后事件源已停,再 Close 满足"Close 与 Failure 不并发"契约
+		err := scheduler.Run(cfg, eng, log, notif)
+		notif.Close()
+		done <- err
 	}()
 	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
 	for {

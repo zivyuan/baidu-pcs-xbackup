@@ -15,7 +15,7 @@
 
 ## 配置
 
-复制 `config.example.yaml` 为 `config.yaml`(**此文件含密钥,已在 .gitignore 中,勿入库**):
+复制 `config.example.yaml` 为 `config.yaml`:
 
 ```yaml
 app_key: "你的AppKey"

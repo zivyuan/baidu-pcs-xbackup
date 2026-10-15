@@ -127,17 +127,13 @@ func (n *Notifier) post(webhook, content string) {
 		}
 		req, err := http.NewRequest(http.MethodPost, webhook, bytes.NewReader(payload))
 		if err != nil {
-			n.log.Warn("通知请求构造失败", "err", err)
+			n.log.Warn("通知请求构造失败", "err", redact(err))
 			return
 		}
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
 		if err != nil {
-			var ue *url.Error
-			if errors.As(err, &ue) {
-				err = ue.Err // 脱敏:url.Error 文本含完整 webhook(含 key),只留底层错误
-			}
-			lastErr = err
+			lastErr = redact(err)
 			continue
 		}
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<10))
@@ -153,6 +149,15 @@ func (n *Notifier) post(webhook, content string) {
 		lastErr = fmt.Errorf("http=%d errcode=%d %s", resp.StatusCode, out.ErrCode, out.ErrMsg)
 	}
 	n.log.Warn("webhook 通知发送失败", "err", lastErr)
+}
+
+// redact 脱敏:*url.Error 文本含完整 webhook URL(含 key),只保留底层错误。
+func redact(err error) error {
+	var ue *url.Error
+	if errors.As(err, &ue) {
+		return ue.Err
+	}
+	return err
 }
 
 func hostName() string {

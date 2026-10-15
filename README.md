@@ -11,6 +11,7 @@
 - 任务防冲突:项目目录下 `<任务名>.fingerprint` 记录机器识别码(本地 `~/.bpxup/fingerprint`),识别码不一致(其他机器同项目同任务)时拒绝执行
 - 幂等:当日已备份则跳过,cron / Task Scheduler / daemon 混跑安全
 - 常驻模式(`bpxup daemon`),Windows 上可注册为系统服务(故障自动重启)
+- 失败有界重试(默认 3 次),耗尽后任务终止并(可选)企业微信 webhook 告警,等待人工干预
 
 ## 配置
 
@@ -22,6 +23,9 @@ secret_key: "你的SecretKey"
 app_name: "项目数据备份"           # 备份根目录名(建在网盘根下);留空 = /apps
 access_token_file: "~/.bpxup/token.json"
 log_file: ""                      # daemon 模式默认 ./bpxup.log
+webhook_url: ""                   # 企业微信机器人 webhook;留空 = 不通知
+retry:
+  max_attempts: 3                 # 总尝试次数;interval=30s(run)/10m(daemon)可配
 projects:
   - id: davidoff
     tasks:

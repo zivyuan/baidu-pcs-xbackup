@@ -30,7 +30,7 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 	}
 	// 服务模式下日志一律走配置的 log_file(daemon 默认 ./bpxup.log,即服务工作目录)
 	log := setupLogger(cfg, true)
-	eng := newEngine(cfg, log) // 与 run/daemon 同路径构建,含 FingerprintFile 等必设字段
+	eng := newEngine(cfg, log)
 	pan := eng.Pan
 	// 立刻上报 Running,token 校验放进工作协程:
 	// EnsureToken 可能发起网络请求(刷新 token),放在上报前会拖过 SCM 的 30 秒连接窗口(1053)。

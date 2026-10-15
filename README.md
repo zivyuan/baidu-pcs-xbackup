@@ -42,6 +42,11 @@ projects:
 ## 使用
 
 ```bash
+# 1. 交互式引导(推荐):配置 AppKey/SecretKey、第一个项目(可跳过)、
+#    设备授权一步完成;结束后可选继续配置 webhook/重试/日志
+./bpxup setup
+
+# 手动方式:
 # 1. 首次授权(OAuth 设备码,浏览器确认一次,之后自动续期)
 ./bpxup login --config config.yaml
 

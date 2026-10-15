@@ -27,6 +27,11 @@ func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
+// MarshalYAML 序列化回 "30s"/"10m" 形式(setup 写配置用,与手写格式一致)。
+func (d Duration) MarshalYAML() (any, error) {
+	return time.Duration(d).String(), nil
+}
+
 // RetryConfig 任务级有界重试配置(run 与 daemon 共用 max_attempts,间隔不同)。
 type RetryConfig struct {
 	MaxAttempts    int      `yaml:"max_attempts"`    // 总尝试次数(含首次)
@@ -50,13 +55,13 @@ type Project struct {
 type Config struct {
 	AppKey          string      `yaml:"app_key"`
 	SecretKey       string      `yaml:"secret_key"`
-	AppName         string      `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
-	AccessTokenFile string      `yaml:"access_token_file"`
-	RemoteRoot      string      `yaml:"remote_root"` // 显式指定备份根目录,优先于 app_name
-	LogFile         string      `yaml:"log_file"`
-	WebhookURL      string      `yaml:"webhook_url"` // 企业微信机器人 webhook;空 = 不通知
-	Retry           RetryConfig `yaml:"retry"`
-	Projects        []Project   `yaml:"projects"`
+	AppName         string      `yaml:"app_name,omitempty"` // 备份根目录名(建在网盘根下);空 = /apps
+	AccessTokenFile string      `yaml:"access_token_file,omitempty"`
+	RemoteRoot      string      `yaml:"remote_root,omitempty"` // 显式指定备份根目录,优先于 app_name
+	LogFile         string      `yaml:"log_file,omitempty"`
+	WebhookURL      string      `yaml:"webhook_url,omitempty"` // 企业微信机器人 webhook;空 = 不通知
+	Retry           RetryConfig `yaml:"retry,omitempty"`
+	Projects        []Project   `yaml:"projects,omitempty"`
 }
 
 var dailyAtRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -168,7 +173,9 @@ func Load(path string) (*Config, error) {
 		c.Retry.DaemonInterval = Duration(10 * time.Minute)
 	}
 	if len(c.Projects) == 0 {
-		return nil, fmt.Errorf("至少需要一个 project")
+		// 允许无项目:setup 可跳过项目配置,login 只需 app_key;
+		// run / verify 对无任务配置自行报"未找到匹配的任务"。
+		return c, nil
 	}
 	for i := range c.Projects {
 		p := &c.Projects[i]

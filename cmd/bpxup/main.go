@@ -15,6 +15,7 @@ func usage() {
 
 命令:
   login                     设备码授权,获取并保存 token
+  setup                     交互式引导:配置 AppKey、第一个项目并完成设备授权
   run                       立即执行备份+清理(适合 cron/Task Scheduler)
   verify                    对账远端备份完整性(--fix 重传修复)
   daemon                    常驻调度模式
@@ -37,6 +38,8 @@ func main() {
 		fmt.Println("bpxup", version)
 	case "login":
 		err = cmdLogin(os.Args[2:])
+	case "setup":
+		err = cmdSetup(os.Args[2:])
 	case "run":
 		err = cmdRun(os.Args[2:])
 	case "verify":

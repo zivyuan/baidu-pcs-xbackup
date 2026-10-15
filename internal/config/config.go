@@ -6,9 +6,33 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
+
+// Duration 支持 YAML 中 "30s"/"10m" 形式的时长(gopkg.in/yaml.v3 不原生支持 time.Duration)。
+type Duration time.Duration
+
+func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
+	var s string
+	if err := node.Decode(&s); err != nil {
+		return fmt.Errorf("时长应为字符串: %v", err)
+	}
+	dur, err := time.ParseDuration(s)
+	if err != nil {
+		return fmt.Errorf("时长格式错误: %q,应为 Go duration(如 30s、10m)", s)
+	}
+	*d = Duration(dur)
+	return nil
+}
+
+// RetryConfig 任务级有界重试配置(run 与 daemon 共用 max_attempts,间隔不同)。
+type RetryConfig struct {
+	MaxAttempts    int      `yaml:"max_attempts"`    // 总尝试次数(含首次)
+	Interval       Duration `yaml:"interval"`        // run 模式重试间隔
+	DaemonInterval Duration `yaml:"daemon_interval"` // daemon 模式重试间隔
+}
 
 type Task struct {
 	Name      string `yaml:"name"`
@@ -24,13 +48,15 @@ type Project struct {
 }
 
 type Config struct {
-	AppKey          string    `yaml:"app_key"`
-	SecretKey       string    `yaml:"secret_key"`
-	AppName         string    `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
-	AccessTokenFile string    `yaml:"access_token_file"`
-	RemoteRoot      string    `yaml:"remote_root"` // 显式指定备份根目录,优先于 app_name
-	LogFile         string    `yaml:"log_file"`
-	Projects        []Project `yaml:"projects"`
+	AppKey          string      `yaml:"app_key"`
+	SecretKey       string      `yaml:"secret_key"`
+	AppName         string      `yaml:"app_name"` // 备份根目录名(建在网盘根下);空 = /apps
+	AccessTokenFile string      `yaml:"access_token_file"`
+	RemoteRoot      string      `yaml:"remote_root"` // 显式指定备份根目录,优先于 app_name
+	LogFile         string      `yaml:"log_file"`
+	WebhookURL      string      `yaml:"webhook_url"` // 企业微信机器人 webhook;空 = 不通知
+	Retry           RetryConfig `yaml:"retry"`
+	Projects        []Project   `yaml:"projects"`
 }
 
 var dailyAtRe = regexp.MustCompile(`^([01]\d|2[0-3]):[0-5]\d$`)
@@ -126,6 +152,21 @@ func Load(path string) (*Config, error) {
 	}
 	c.AccessTokenFile = NormalizePath(c.AccessTokenFile)
 	c.LogFile = NormalizePath(c.LogFile)
+	if c.Retry.MaxAttempts == 0 {
+		c.Retry.MaxAttempts = 3
+	}
+	if c.Retry.MaxAttempts < 0 {
+		return nil, fmt.Errorf("retry.max_attempts 必须 ≥ 1")
+	}
+	if c.Retry.Interval < 0 || c.Retry.DaemonInterval < 0 {
+		return nil, fmt.Errorf("retry 间隔不能为负")
+	}
+	if c.Retry.Interval == 0 {
+		c.Retry.Interval = Duration(30 * time.Second)
+	}
+	if c.Retry.DaemonInterval == 0 {
+		c.Retry.DaemonInterval = Duration(10 * time.Minute)
+	}
 	if len(c.Projects) == 0 {
 		return nil, fmt.Errorf("至少需要一个 project")
 	}

@@ -65,7 +65,7 @@ func setupLogger(cfg *config.Config, daemon bool) *slog.Logger {
 		}
 		w = f
 	}
-	return slog.New(slog.NewTextHandler(w, nil))
+	return slog.New(newConciseHandler(w))
 }
 
 func cmdLogin(args []string) error {

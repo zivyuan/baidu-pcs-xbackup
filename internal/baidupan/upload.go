@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -166,7 +167,22 @@ func (c *Client) uploadChunk(uploadID, remotePath string, seq int, localPath str
 		if resp.StatusCode == 200 && out.Errno == 0 {
 			return nil
 		}
-		lastErr = fmt.Errorf("superfile2 errno=%d http=%d", out.Errno, resp.StatusCode)
+		lastErr = fmt.Errorf("superfile2 http=%d errno=%d body=%s", resp.StatusCode, out.Errno, bodySnippet(body))
 	}
 	return lastErr
+}
+
+// bodySnippet 响应体摘要:压缩空白为单空格、截断 100 字符。
+// 服务端异常时常返回 HTML 错误页而非 JSON(errno 解不出来),
+// 摘要随错误链透传到日志与通知,便于排查真实原因。
+func bodySnippet(body []byte) string {
+	s := strings.Join(strings.Fields(string(body)), " ")
+	if s == "" {
+		return "<空>" // 网关直接断开等场景,避免错误消息以 body= 结尾
+	}
+	r := []rune(s)
+	if len(r) > 100 {
+		s = string(r[:100]) + "..."
+	}
+	return s
 }

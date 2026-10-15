@@ -3,10 +3,12 @@ package notify
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -63,6 +65,8 @@ func (n *Notifier) Failure(project, task string, attempts int, errStr string) {
 }
 
 // Close 停止后台 goroutine 并同步 flush 未发送的累计。
+// 注意:调用方须保证 Close 与 Failure 不并发(先停止产生失败事件的调度,再 Close);
+// 本类型不做内部加锁。
 func (n *Notifier) Close() {
 	if n.ch == nil {
 		return
@@ -129,6 +133,10 @@ func (n *Notifier) post(webhook, content string) {
 		req.Header.Set("Content-Type", "application/json")
 		resp, err := client.Do(req)
 		if err != nil {
+			var ue *url.Error
+			if errors.As(err, &ue) {
+				err = ue.Err // 脱敏:url.Error 文本含完整 webhook(含 key),只留底层错误
+			}
 			lastErr = err
 			continue
 		}

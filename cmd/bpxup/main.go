@@ -42,6 +42,8 @@ func main() {
 		err = cmdDaemon(os.Args[2:])
 	case "service":
 		err = cmdService(os.Args[2:])
+	case "-service-run": // 服务本体入口:SCM 以此参数拉起,必须先于 default 分支路由到 svc.Run
+		err = serviceDispatch(os.Args[1:])
 	default:
 		usage()
 		os.Exit(2)

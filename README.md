@@ -45,7 +45,7 @@ projects:
 ./bpxup daemon --config config.yaml
 ```
 
-配置路径优先级:`--config` 参数 > `BBS_CONFIG` 环境变量 > `./config.yaml`。
+配置路径优先级:`--config` 参数 > `BPXUP_CONFIG` 环境变量 > `./config.yaml`。
 daemon 启动后不感知配置变化,改配置需重启进程。
 
 ## 各平台自启动

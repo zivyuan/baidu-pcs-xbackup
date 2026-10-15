@@ -33,12 +33,15 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 	log := setupLogger(cfg, true)
 	pan := baidupan.New(cfg.AppKey, cfg.SecretKey, cfg.AccessTokenFile)
 	eng := backup.New(pan, cfg.Root(), log)
-	if err := pan.EnsureToken(); err != nil {
-		log.Error("token 无效", "err", err)
-		return true, 1
-	}
+	// 立刻上报 Running,token 校验放进工作协程:
+	// EnsureToken 可能发起网络请求(刷新 token),放在上报前会拖过 SCM 的 30 秒连接窗口(1053)。
 	done := make(chan error, 1)
 	go func() {
+		if err := pan.EnsureToken(); err != nil {
+			log.Error("token 无效", "err", err)
+			done <- err
+			return
+		}
 		done <- scheduler.Run(cfg, eng, log)
 	}()
 	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}

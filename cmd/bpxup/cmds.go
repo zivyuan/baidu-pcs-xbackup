@@ -17,18 +17,18 @@ import (
 // newFlagSet 为子命令建 FlagSet:--config 必有,额外标志由 extra 回调注册。
 func newFlagSet(name string, extra func(fs *flag.FlagSet)) *flag.FlagSet {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)
-	fs.String("config", "", "配置文件路径(默认: BBS_CONFIG 环境变量,再默认 ./config.yaml)")
+	fs.String("config", "", "配置文件路径(默认: BPXUP_CONFIG 环境变量,再默认 ./config.yaml)")
 	if extra != nil {
 		extra(fs)
 	}
 	return fs
 }
 
-// loadConfig 配置路径优先级:--config 参数 > BBS_CONFIG 环境变量 > ./config.yaml
+// loadConfig 配置路径优先级:--config 参数 > BPXUP_CONFIG 环境变量 > ./config.yaml
 func loadConfig(fs *flag.FlagSet) *config.Config {
 	cfgPath := fs.Lookup("config").Value.String()
 	if cfgPath == "" {
-		cfgPath = os.Getenv("BBS_CONFIG")
+		cfgPath = os.Getenv("BPXUP_CONFIG")
 	}
 	if cfgPath == "" {
 		cfgPath = "config.yaml"

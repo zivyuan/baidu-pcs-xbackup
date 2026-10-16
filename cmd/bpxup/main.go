@@ -37,7 +37,8 @@ func versionString() string {
 		}
 	}
 	var extra []string
-	if commit != "" {
+	// 开发版版本号(git describe)已含 g<sha>(及 -dirty),不再重复 commit
+	if commit != "" && !strings.Contains(version, commit[:7]) {
 		extra = append(extra, "commit "+commit+dirty)
 	}
 	if built != "" {

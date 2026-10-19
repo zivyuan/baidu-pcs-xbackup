@@ -94,6 +94,10 @@ func main() {
 		err = cmdStop(os.Args[2:])
 	case "validate":
 		err = cmdValidate(os.Args[2:])
+	case "-service-run":
+		// 兼容旧版 Windows 服务注册(SCM 以单横线 -service-run 拉起):
+		// 归一为 --service-run 后走 cmdDaemon,后续参数与 FlagSet 兼容
+		err = cmdDaemon(append([]string{"--service-run"}, os.Args[2:]...))
 	default:
 		usage()
 		os.Exit(2)

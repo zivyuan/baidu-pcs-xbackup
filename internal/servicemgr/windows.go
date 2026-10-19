@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -16,8 +17,11 @@ import (
 
 const svcName = "bpxup"
 
+// serviceArgs 返回 SCM 存储的命令行可变参数部分(仅用于 UpdateConfig 的
+// BinaryPathName 与幂等比对);CreateService 走可变参数(exec argv 语义,
+// SCM 自行处理带空格参数),不加引号。
 func serviceArgs(cfgPath string) string {
-	return "daemon --service-run --config " + cfgPath
+	return `daemon --service-run --config "` + cfgPath + `"`
 }
 
 func waitState(s *mgr.Service, to svc.State, timeout time.Duration) error {
@@ -155,6 +159,17 @@ func uninstall() error {
 		return errors.New("服务未注册")
 	}
 	defer s.Close()
+	// 先停服务再删除;Control(Stop) 对已停止服务返回错误 1062,视为已停止
+	if st, err := s.Query(); err != nil {
+		return fmt.Errorf("查询服务状态: %w", err)
+	} else if st.State != svc.Stopped {
+		if _, err := s.Control(svc.Stop); err != nil && !errors.Is(err, syscall.Errno(1062)) {
+			return fmt.Errorf("停止服务: %w", err)
+		}
+		if err := waitState(s, svc.Stopped, 60*time.Second); err != nil {
+			return err
+		}
+	}
 	_ = eventlog.Remove(svcName)
 	return s.Delete()
 }

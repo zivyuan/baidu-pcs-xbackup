@@ -19,7 +19,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-ExecStart=%s daemon --service-run --config %s
+ExecStart="%s" daemon --service-run --config "%s"
 Restart=on-failure
 RestartSec=10
 

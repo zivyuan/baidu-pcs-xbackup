@@ -63,6 +63,7 @@ func usage() {
   verify                    对账远端备份完整性(--fix 重传修复)
   daemon                    注册为系统服务并后台运行(开机自启;--uninstall 卸载)
   stop                      停止后台 daemon(注册与自启保留)
+  validate                  校验配置(静态 + 网盘连通性)
   version                   显示版本
 
 全局参数:
@@ -91,6 +92,8 @@ func main() {
 		err = cmdDaemon(os.Args[2:])
 	case "stop":
 		err = cmdStop(os.Args[2:])
+	case "validate":
+		err = cmdValidate(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)

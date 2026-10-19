@@ -104,10 +104,12 @@ launchd unload）。服务仍保持 registered + enabled（下次开机/手动�
 
 ### 5. HTTP 超时
 
-- internal/baidupan 统一使用共享 `http.Client`：
-  - JSON REST 调用（list/precreate/create/oauth 等）：30s 总超时；
-  - 分片上传（superfile2，4MB/片）：10 分钟超时（慢上行链路保护），
-    失败重试沿用现有退避逻辑。
+- 现状：`baidupan.Client` 的 REST 调用与分片上传已统一走共享
+  `http.Client`（120s 超时，client.go:31）；但 `oauth.go` 三处
+  `http.PostForm`（设备码、轮询 token、刷新 token）用的是 `http.DefaultClient`，
+  **无超时，是真实的无限挂起点**。
+- 修复：三处改走共享客户端；共享客户端补惰性初始化（测试直接构造
+  `Client{}` 时也能用）。
 - 效果：网络异常从"无限挂起"变为"报错进入重试/失败路径"，
   配合服务管理器的失败检测。
 

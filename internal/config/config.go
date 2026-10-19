@@ -141,9 +141,13 @@ func ParseDailyAt(s string) (int, int, error) {
 }
 
 // Load 读取 YAML、填默认值、规范化路径并校验。
+// 文件不存在时单独报错并提示出路,所有子命令(loadConfig/daemon/validate)据此退出。
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("配置文件不存在: %s(请先 bpxup setup,或检查 --config 路径)", path)
+		}
 		return nil, fmt.Errorf("读取配置: %w", err)
 	}
 	c := &Config{}

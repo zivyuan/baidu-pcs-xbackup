@@ -111,7 +111,17 @@ launchd unload）。服务仍保持 registered + enabled（下次开机/手动�
 - 效果：网络异常从"无限挂起"变为"报错进入重试/失败路径"，
   配合服务管理器的失败检测。
 
-### 6. 优雅退出
+### 6. 通知类型配置（成功通知）
+
+- 配置新增 `notify_on`：`failure`（默认，仅失败，兼容现有行为）| `all`（成功和失败）。
+- notify 包 event 增加事件类型（失败/成功）：
+  - 失败事件维持现有聚合逻辑（立即 + 60s 汇总）不变；
+  - 成功事件不走聚合，直接发送：`bpxup 备份成功`，含 项目/任务/文件数。
+- `cmdRun` 与 `scheduler` 在任务成功处按 `notify_on` 调用上报；
+  `Notifier.New` 接收通知模式，热重载时模式变化随 Notifier 重建生效。
+- `setup` 交互配置增加该项询问（默认 failure）。
+
+### 7. 优雅退出
 
 - `scheduler.Run` 增加 context.Context 参数：
   - 服务模式：Windows SCM Stop/Shutdown、systemd SIGTERM 触发 cancel；

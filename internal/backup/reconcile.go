@@ -22,9 +22,12 @@ type localFile struct {
 }
 
 // walkLocal 遍历本地源,收集常规文件(跳过软链等非常规文件,与上传规则一致)。
-func walkLocal(root string) (map[string]localFile, error) {
+// 返回第二个值为跳过的空文件数(百度 API 不支持上传空文件,size=0 一律跳过,
+// 使上传/复核/verify 对账天然一致)。
+func walkLocal(root string) (map[string]localFile, int, error) {
 	root = filepath.Clean(root)
 	out := map[string]localFile{}
+	empty := 0
 	err := filepath.Walk(root, func(path string, fi os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -36,11 +39,15 @@ func walkLocal(root string) (map[string]localFile, error) {
 		if rel == "." || fi.IsDir() || !fi.Mode().IsRegular() {
 			return nil
 		}
+		if fi.Size() == 0 {
+			empty++
+			return nil
+		}
 		rel = filepath.ToSlash(rel)
 		out[rel] = localFile{Rel: rel, Path: path, Size: fi.Size()}
 		return nil
 	})
-	return out, err
+	return out, empty, err
 }
 
 // remoteSizes 递归列出远端目录,返回 文件相对路径→大小。
@@ -92,9 +99,12 @@ func (e *Engine) syncRaw(taskDir, source string) (uploaded, total int, err error
 	if err := e.ensureDir(taskDir); err != nil { // 源目录只有文件没有子目录时也要有任务目录
 		return 0, 0, err
 	}
-	expect, err := walkLocal(source)
+	expect, empty, err := walkLocal(source)
 	if err != nil {
 		return 0, 0, fmt.Errorf("遍历源 %s: %w", source, err)
+	}
+	if empty > 0 {
+		e.Log.Warn("跳过空文件(百度 API 不支持上传空文件)", "数量", empty)
 	}
 	actual, err := e.remoteSizes(taskDir)
 	if err != nil {
@@ -190,7 +200,7 @@ func (e *Engine) VerifyTask(p config.Project, t config.Task, date string, fix bo
 		return nil, nil
 	default: // raw
 		taskDir := dir + "/" + t.Name
-		expect, err := walkLocal(t.Source)
+		expect, _, err := walkLocal(t.Source)
 		if err != nil {
 			return nil, fmt.Errorf("遍历源 %s: %w", t.Source, err)
 		}

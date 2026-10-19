@@ -140,7 +140,7 @@ func TestWalkLocal(t *testing.T) {
 	if err := os.Symlink(filepath.Join(root, "a.txt"), filepath.Join(root, "link.txt")); err != nil {
 		t.Fatal(err)
 	}
-	got, err := walkLocal(root)
+	got, _, err := walkLocal(root)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -246,6 +246,13 @@ func cmdSetup(args []string) error {
 	if p.askConfirm("继续完整配置?(webhook 告警、重试参数、日志路径,均有默认值)", false) {
 		fmt.Println("== 可选配置(回车用默认值)==")
 		cfg.WebhookURL = p.askOptional("webhook_url(企业微信机器人,留空不通知)", cfg.WebhookURL)
+		for {
+			cfg.NotifyOn = p.ask("notify_on(失败才通知=failure | 成功和失败=all)", defStr(cfg.NotifyOn, "failure"))
+			if cfg.NotifyOn == "failure" || cfg.NotifyOn == "all" {
+				break
+			}
+			fmt.Println("  只能是 failure 或 all")
+		}
 		cfg.LogFile = p.askOptional("log_file(daemon 日志路径,留空默认 ./bpxup.log)", cfg.LogFile)
 		cfg.Retry.MaxAttempts = p.askInt("retry.max_attempts(总尝试次数)", defInt(cfg.Retry.MaxAttempts, 3))
 		cfg.Retry.Interval = p.askDuration("retry.interval(run 模式重试间隔)", durStr(cfg.Retry.Interval, "30s"))

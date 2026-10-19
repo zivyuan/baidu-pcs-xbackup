@@ -61,8 +61,8 @@ func usage() {
   setup                     交互式引导:配置 AppKey、第一个项目并完成设备授权
   run                       立即执行备份+清理(适合 cron/Task Scheduler)
   verify                    对账远端备份完整性(--fix 重传修复)
-  daemon                    常驻调度模式
-  service <install|uninstall|start|stop>   Windows 服务管理(仅 Windows)
+  daemon                    注册为系统服务并后台运行(开机自启;--uninstall 卸载)
+  stop                      停止后台 daemon(注册与自启保留)
   version                   显示版本
 
 全局参数:
@@ -89,10 +89,8 @@ func main() {
 		err = cmdVerify(os.Args[2:])
 	case "daemon":
 		err = cmdDaemon(os.Args[2:])
-	case "service":
-		err = cmdService(os.Args[2:])
-	case "-service-run": // 服务本体入口:SCM 以此参数拉起,必须先于 default 分支路由到 svc.Run
-		err = serviceDispatch(os.Args[1:])
+	case "stop":
+		err = cmdStop(os.Args[2:])
 	default:
 		usage()
 		os.Exit(2)

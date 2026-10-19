@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -17,6 +18,7 @@ import (
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/notify"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/retry"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/servicemgr"
 )
 
 // newFlagSet 为子命令建 FlagSet:--config 必有,额外标志由 extra 回调注册。
@@ -221,18 +223,80 @@ func cmdVerify(args []string) error {
 	return nil
 }
 
-func cmdDaemon(args []string) error {
-	fs := newFlagSet("daemon", nil)
-	fs.Parse(args)
-	cfg := loadConfig(fs)
+// splitServiceRun 分离内部标志 --service-run(服务管理器拉起时传入,
+// 不注册到 FlagSet,避免污染帮助)。
+func splitServiceRun(args []string) (bool, []string) {
+	rest := make([]string, 0, len(args))
+	hit := false
+	for _, a := range args {
+		if a == "--service-run" {
+			hit = true
+			continue
+		}
+		rest = append(rest, a)
+	}
+	return hit, rest
+}
 
-	log := setupLogger(cfg, true)
+// runForeground 前台调度循环(无服务管理器回退 / --service-run 的 Unix 路径)。
+func runForeground(cfgPath string, cfg *config.Config) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return scheduler.Run(ctx, configPath(fs), cfg,
+	log := setupLogger(cfg, true)
+	return scheduler.Run(ctx, cfgPath, cfg,
 		func(c *config.Config) (*backup.Engine, *baidupan.Client) { return newEngine(c, log) }, log)
 }
 
-func cmdService(args []string) error {
-	return serviceDispatch(args)
+func cmdDaemon(args []string) error {
+	serviceRun, args := splitServiceRun(args)
+	var uninstall bool
+	fs := newFlagSet("daemon", func(fs *flag.FlagSet) {
+		fs.BoolVar(&uninstall, "uninstall", false, "停止并取消注册系统服务")
+	})
+	fs.Parse(args)
+	cfgPath := configPath(fs)
+
+	if serviceRun {
+		return runService(cfgPath) // windows: svc.Run;其余平台: 前台循环
+	}
+	if uninstall {
+		return servicemgr.Uninstall()
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		return fmt.Errorf("配置错误(可先执行 bpxup validate 排查): %w", err)
+	}
+	abs, err := filepath.Abs(cfgPath)
+	if err != nil {
+		return err
+	}
+	action, err := servicemgr.Ensure(abs)
+	if errors.Is(err, servicemgr.ErrNoServiceManager) {
+		fmt.Println("未检测到 systemd/launchd,以前台模式运行(Ctrl+C 退出)...")
+		return runForeground(cfgPath, cfg)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Printf("%s;日志:%s\n", action, logFilePath(cfg))
+	return nil
+}
+
+// logFilePath daemon 日志路径(与 setupLogger 同规则)。
+func logFilePath(cfg *config.Config) string {
+	if cfg.LogFile != "" {
+		return cfg.LogFile
+	}
+	return "bpxup.log"
+}
+
+func cmdStop(args []string) error {
+	fs := newFlagSet("stop", nil)
+	fs.Parse(args)
+	if err := servicemgr.Stop(); err != nil {
+		return fmt.Errorf("%w;前台模式运行的 daemon 请在对应终端 Ctrl+C", err)
+	}
+	fmt.Println("daemon 已停止(注册与开机自启保留)")
+	return nil
 }

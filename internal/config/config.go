@@ -60,6 +60,7 @@ type Config struct {
 	RemoteRoot      string      `yaml:"remote_root,omitempty"` // 显式指定备份根目录,优先于 app_name
 	LogFile         string      `yaml:"log_file,omitempty"`
 	WebhookURL      string      `yaml:"webhook_url,omitempty"` // 企业微信机器人 webhook;空 = 不通知
+	NotifyOn        string      `yaml:"notify_on,omitempty"`   // failure(默认,仅失败) | all(成功和失败)
 	Retry           RetryConfig `yaml:"retry,omitempty"`
 	Projects        []Project   `yaml:"projects,omitempty"`
 }
@@ -146,6 +147,12 @@ func Load(path string) (*Config, error) {
 	}
 	if c.AppKey == "" || c.SecretKey == "" {
 		return nil, fmt.Errorf("app_key / secret_key 不能为空")
+	}
+	if c.NotifyOn == "" {
+		c.NotifyOn = "failure"
+	}
+	if c.NotifyOn != "failure" && c.NotifyOn != "all" {
+		return nil, fmt.Errorf("notify_on 只能为 failure 或 all")
 	}
 	if c.AppName != "" {
 		if err := validName("app_name", c.AppName); err != nil {

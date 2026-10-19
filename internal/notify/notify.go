@@ -37,14 +37,16 @@ type event struct {
 // 自最后一条事件起静默满 60s 发送汇总,之后周期重置(下一条再立即发送)。
 // webhook 为空时为 no-op,完全不启动后台 goroutine。
 type Notifier struct {
-	ch  chan event
-	wg  sync.WaitGroup
-	log *slog.Logger
+	ch      chan event
+	wg      sync.WaitGroup
+	log     *slog.Logger
+	webhook string
+	mode    string
 }
 
-// New 创建通知器。webhook 为空返回 no-op。
-func New(webhook string, log *slog.Logger) *Notifier {
-	n := &Notifier{log: log}
+// New 创建通知器。webhook 为空返回 no-op;mode: failure 仅失败,all 成功和失败。
+func New(webhook, mode string, log *slog.Logger) *Notifier {
+	n := &Notifier{log: log, webhook: webhook, mode: mode}
 	if webhook == "" {
 		return n
 	}
@@ -64,6 +66,14 @@ func (n *Notifier) Failure(project, task string, attempts int, errStr string) {
 	case n.ch <- ev:
 	default:
 	}
+}
+
+// Success 上报一条成功事件。不走失败聚合,直接异步发送,不阻塞调度。
+func (n *Notifier) Success(project, task string, files int) {
+	if n.ch == nil || n.mode != "all" {
+		return // webhook 未配置或仅失败模式
+	}
+	go n.post(n.webhook, successMsg(project, task, files))
 }
 
 // Close 停止后台 goroutine 并同步 flush 未发送的累计。
@@ -174,6 +184,11 @@ func hostName() string {
 func singleMsg(ev event) string {
 	return fmt.Sprintf("**bpxup 备份失败**\n> 主机:%s\n> 时间:%s\n> 项目:%s / 任务:%s\n> 尝试:%d 次\n> 错误:%s",
 		hostName(), time.Now().Format("2006-01-02 15:04:05"), ev.project, ev.task, ev.attempts, ev.err)
+}
+
+func successMsg(project, task string, files int) string {
+	return fmt.Sprintf("**bpxup 备份成功**\n> 主机:%s\n> 时间:%s\n> 项目:%s / 任务:%s\n> 文件数:%d",
+		hostName(), time.Now().Format("2006-01-02 15:04:05"), project, task, files)
 }
 
 func aggregateMsg(evs []event) string {

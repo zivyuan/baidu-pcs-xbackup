@@ -87,7 +87,7 @@ func cmdRun(args []string) error {
 
 	log := setupLogger(cfg, false)
 	eng, pan := newEngine(cfg, log)
-	notif := notify.New(cfg.WebhookURL, log)
+	notif := notify.New(cfg.WebhookURL, cfg.NotifyOn, log)
 	defer notif.Close() // 退出前 flush 未发送的聚合汇总
 	if err := pan.EnsureToken(); err != nil {
 		return err
@@ -217,7 +217,7 @@ func cmdDaemon(args []string) error {
 
 	log := setupLogger(cfg, true)
 	eng, pan := newEngine(cfg, log)
-	notif := notify.New(cfg.WebhookURL, log)
+	notif := notify.New(cfg.WebhookURL, cfg.NotifyOn, log)
 	defer notif.Close()
 	if err := pan.EnsureToken(); err != nil {
 		return err

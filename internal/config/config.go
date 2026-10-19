@@ -91,11 +91,16 @@ func validName(kind, name string) error {
 }
 
 // NormalizePath 展开 ~,并把 Cygwin 风格 /cygdrive/<盘符>/... 转为 Windows 路径。
+// 取不到 HOME 时原样返回(保留 ~/ 前缀,让后续 open 报出可读的错误,
+// 而不是静默拼出错误的相对路径——systemd 服务环境默认无 HOME)。
 func NormalizePath(p string) string {
 	if p == "" {
 		return p
 	}
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p
+	}
 	if p == "~" {
 		return home
 	}

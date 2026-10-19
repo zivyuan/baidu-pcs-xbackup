@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -19,6 +20,10 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
+# 服务环境默认无 HOME,会导致 ~/ 展开失败;%h = 运行用户家目录
+Environment=HOME=%%h
+# 相对路径(log_file 等)以配置文件目录为基准,与交互式运行一致
+WorkingDirectory=%s
 ExecStart="%s" daemon --service-run --config "%s"
 Restart=on-failure
 RestartSec=10
@@ -53,7 +58,7 @@ func ensure(cfgPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	want := fmt.Sprintf(unitTmpl, exe, cfgPath)
+	want := fmt.Sprintf(unitTmpl, filepath.Dir(cfgPath), exe, cfgPath)
 	old, readErr := os.ReadFile(unitPath)
 	existed := readErr == nil
 	if existed && string(old) == want && isActive() {

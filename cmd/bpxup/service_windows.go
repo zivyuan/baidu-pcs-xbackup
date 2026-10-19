@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -13,8 +14,9 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 	"golang.org/x/sys/windows/svc/mgr"
 
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
+	"github.com/zivyuan/baidu-pcs-xbackup/internal/baidupan"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/config"
-	"github.com/zivyuan/baidu-pcs-xbackup/internal/notify"
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/scheduler"
 )
 
@@ -30,21 +32,15 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 	}
 	// 服务模式下日志一律走配置的 log_file(daemon 默认 ./bpxup.log,即服务工作目录)
 	log := setupLogger(cfg, true)
-	eng, pan := newEngine(cfg, log)
 	// 立刻上报 Running,token 校验放进工作协程:
 	// EnsureToken 可能发起网络请求(刷新 token),放在上报前会拖过 SCM 的 30 秒连接窗口(1053)。
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	done := make(chan error, 1)
-	notif := notify.New(cfg.WebhookURL, cfg.NotifyOn, log)
 	go func() {
-		if err := pan.EnsureToken(); err != nil {
-			log.Error("token 无效", "err", err)
-			done <- err
-			notif.Close()
-			return
-		}
-		// scheduler.Run 返回后事件源已停,再 Close 满足"Close 与 Failure 不并发"契约
-		err := scheduler.Run(cfg, eng, log, notif)
-		notif.Close()
+		// EnsureToken 由 scheduler.Run 在协程内调用,语义不变
+		err := scheduler.Run(ctx, s.cfgPath, cfg,
+			func(c *config.Config) (*backup.Engine, *baidupan.Client) { return newEngine(c, log) }, log)
 		done <- err
 	}()
 	status <- svc.Status{State: svc.Running, Accepts: svc.AcceptStop | svc.AcceptShutdown}
@@ -56,7 +52,9 @@ func (s *bpxupService) Execute(args []string, req <-chan svc.ChangeRequest, stat
 				status <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
 				status <- svc.Status{State: svc.StopPending}
-				return false, 0
+				cancel() // 通知 scheduler 优雅退出(含 flush 聚合通知)
+				err := <-done
+				return err == nil, 0
 			}
 		case err := <-done:
 			return err == nil, 0

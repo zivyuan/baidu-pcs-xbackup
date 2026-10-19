@@ -1,11 +1,14 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/zivyuan/baidu-pcs-xbackup/internal/backup"
@@ -26,16 +29,21 @@ func newFlagSet(name string, extra func(fs *flag.FlagSet)) *flag.FlagSet {
 	return fs
 }
 
-// loadConfig 配置路径优先级:--config 参数 > BPXUP_CONFIG 环境变量 > ./config.yaml
+// configPath 配置路径优先级:--config 参数 > BPXUP_CONFIG 环境变量 > ./config.yaml
+func configPath(fs *flag.FlagSet) string {
+	path := fs.Lookup("config").Value.String()
+	if path == "" {
+		path = os.Getenv("BPXUP_CONFIG")
+	}
+	if path == "" {
+		path = "config.yaml"
+	}
+	return path
+}
+
+// loadConfig 按优先级解析配置路径并加载配置,失败直接退出。
 func loadConfig(fs *flag.FlagSet) *config.Config {
-	cfgPath := fs.Lookup("config").Value.String()
-	if cfgPath == "" {
-		cfgPath = os.Getenv("BPXUP_CONFIG")
-	}
-	if cfgPath == "" {
-		cfgPath = "config.yaml"
-	}
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(configPath(fs))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "配置错误:", err)
 		os.Exit(1)
@@ -86,7 +94,7 @@ func cmdRun(args []string) error {
 	cfg := loadConfig(fs)
 
 	log := setupLogger(cfg, false)
-	eng, pan := newEngine(cfg, log)
+	eng, pan := newEngine(cfg, log) // run 模式不经 scheduler,自行 EnsureToken
 	notif := notify.New(cfg.WebhookURL, cfg.NotifyOn, log)
 	defer notif.Close() // 退出前 flush 未发送的聚合汇总
 	if err := pan.EnsureToken(); err != nil {
@@ -219,13 +227,10 @@ func cmdDaemon(args []string) error {
 	cfg := loadConfig(fs)
 
 	log := setupLogger(cfg, true)
-	eng, pan := newEngine(cfg, log)
-	notif := notify.New(cfg.WebhookURL, cfg.NotifyOn, log)
-	defer notif.Close()
-	if err := pan.EnsureToken(); err != nil {
-		return err
-	}
-	return scheduler.Run(cfg, eng, log, notif)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return scheduler.Run(ctx, configPath(fs), cfg,
+		func(c *config.Config) (*backup.Engine, *baidupan.Client) { return newEngine(c, log) }, log)
 }
 
 func cmdService(args []string) error {

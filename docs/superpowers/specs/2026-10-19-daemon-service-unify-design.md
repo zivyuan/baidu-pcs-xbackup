@@ -32,7 +32,6 @@
 
 - 不做 `reload` 子命令 / SIGHUP 通知机制（自动检测替代）。
 - 不再保留旧 `service` 子命令（Windows 能力并入 daemon）。
-- 不做 Unix 裸 detach 模式（无 systemd/launchd 的环境报错提示）。
 
 ## 设计
 
@@ -47,6 +46,10 @@
 | Windows | SCM（复用现有代码） | 服务 `bpxup`，自动启动+故障恢复 | 管理员 |
 
 **共同行为**：
+
+- **无服务管理器兜底（Unix）**：检测不到 systemd（`systemctl` 不存在或
+  未运行）/ launchd 时，打印提示：无服务管理器，以前台模式运行（Ctrl+C 退出），
+  随后保持现有前台调度逻辑直接运行（不注册、不退出）。
 
 - 服务启动命令统一为 `<exe> daemon --service-run --config <绝对路径>`。
   `--service-run` 为内部标志（不在帮助文档展示）：收到后跳过注册逻辑，
@@ -119,7 +122,7 @@ launchd unload）。服务仍保持 registered + enabled（下次开机/手动�
 | 场景 | 行为 |
 |---|---|
 | 服务注册权限不足 | 明确报错（Linux root / Windows 管理员 / macOS root），退出 1 |
-| systemd/launchd 不存在 | 报错提示环境不支持，退出 1 |
+| systemd/launchd 不存在 | 打印提示（无服务管理器，以前台模式运行，Ctrl+C 退出），保持现有前台调度逻辑继续运行 |
 | 服务启动超时/failed | 打印日志尾部，回滚本次新注册，退出 1 |
 | 配置热重载失败 | Error 日志，沿用旧配置 |
 | 网络调用超时 | 报错进入既有重试链路 |

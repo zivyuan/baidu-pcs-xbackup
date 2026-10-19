@@ -131,6 +131,7 @@ func (p *prompter) askDuration(label, def string) config.Duration {
 }
 
 // askChoice 选项式提问:列出编号选项,输入序号或选项值,回车取默认项。
+// def 不在 options 中时兜底取第一项(选项文案勿写死"默认",由 > 标记与回车提示动态表达)。
 func (p *prompter) askChoice(label string, options [][2]string, def string) string {
 	defIdx := 0
 	fmt.Println(label + ":")
@@ -286,7 +287,7 @@ func cmdSetup(args []string) error {
 		fmt.Println("== 可选配置(回车用默认值)==")
 		cfg.WebhookURL = p.askOptional("webhook_url(企业微信机器人,留空不通知)", cfg.WebhookURL)
 		cfg.NotifyOn = p.askChoice("notify_on(通知时机)", [][2]string{
-			{"failure", "failure — 仅失败时通知(默认)"},
+			{"failure", "failure — 仅失败时通知"},
 			{"all", "all — 成功和失败都通知"},
 		}, defStr(cfg.NotifyOn, "failure"))
 		cfg.LogFile = p.askOptional("log_file(daemon 日志路径,留空默认 ./bpxup.log)", cfg.LogFile)

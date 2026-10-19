@@ -130,6 +130,45 @@ func (p *prompter) askDuration(label, def string) config.Duration {
 	}
 }
 
+// askChoice 选项式提问:列出编号选项,输入序号或选项值,回车取默认项。
+func (p *prompter) askChoice(label string, options [][2]string, def string) string {
+	defIdx := 0
+	fmt.Println(label + ":")
+	for i, opt := range options {
+		if opt[0] == def {
+			defIdx = i
+		}
+	}
+	for i, opt := range options {
+		mark := "  "
+		if i == defIdx {
+			mark = " >"
+		}
+		fmt.Printf("%s %d) %s\n", mark, i+1, opt[1])
+	}
+	for {
+		fmt.Printf("请选择 [回车=%s]: ", options[defIdx][0])
+		line, err := p.in.ReadString('\n')
+		if err != nil && line == "" {
+			fmt.Println("\n输入中断,已取消")
+			os.Exit(1)
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			return options[defIdx][0]
+		}
+		if n, err := strconv.Atoi(line); err == nil && n >= 1 && n <= len(options) {
+			return options[n-1][0]
+		}
+		for _, opt := range options {
+			if opt[0] == line {
+				return opt[0]
+			}
+		}
+		fmt.Println("  无效选择,请输入序号或选项值")
+	}
+}
+
 // askPath 问本地路径并展开 ~,校验存在;不存在时确认是否仍使用。
 func (p *prompter) askPath(label, def string) string {
 	for {
@@ -246,13 +285,10 @@ func cmdSetup(args []string) error {
 	if p.askConfirm("继续完整配置?(webhook 告警、重试参数、日志路径,均有默认值)", false) {
 		fmt.Println("== 可选配置(回车用默认值)==")
 		cfg.WebhookURL = p.askOptional("webhook_url(企业微信机器人,留空不通知)", cfg.WebhookURL)
-		for {
-			cfg.NotifyOn = p.ask("notify_on(失败才通知=failure | 成功和失败=all)", defStr(cfg.NotifyOn, "failure"))
-			if cfg.NotifyOn == "failure" || cfg.NotifyOn == "all" {
-				break
-			}
-			fmt.Println("  只能是 failure 或 all")
-		}
+		cfg.NotifyOn = p.askChoice("notify_on(通知时机)", [][2]string{
+			{"failure", "failure — 仅失败时通知(默认)"},
+			{"all", "all — 成功和失败都通知"},
+		}, defStr(cfg.NotifyOn, "failure"))
 		cfg.LogFile = p.askOptional("log_file(daemon 日志路径,留空默认 ./bpxup.log)", cfg.LogFile)
 		cfg.Retry.MaxAttempts = p.askInt("retry.max_attempts(总尝试次数)", defInt(cfg.Retry.MaxAttempts, 3))
 		cfg.Retry.Interval = p.askDuration("retry.interval(run 模式重试间隔)", durStr(cfg.Retry.Interval, "30s"))

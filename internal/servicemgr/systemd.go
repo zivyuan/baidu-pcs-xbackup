@@ -20,7 +20,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-# 服务环境默认无 HOME,会导致 ~/ 展开失败;%h = 运行用户家目录
+# 服务环境默认无 HOME,会导致 ~/ 展开失败;HOME 取运行用户家目录(systemd 展开 %%h)
 Environment=HOME=%%h
 # 相对路径(log_file 等)以配置文件目录为基准,与交互式运行一致
 WorkingDirectory=%s

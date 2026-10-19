@@ -75,67 +75,70 @@ func (e *Engine) IsDone(p config.Project, t config.Task, date string) (bool, err
 	return false, nil
 }
 
-// RunTask 执行单个任务的备份。
+// RunTask 执行单个任务的备份,成功返回本次备份的文件数
+// (archive=1,raw=期望文件总数;当日已备份跳过时返回 0)。
 // 完成标志:raw → <日期>/<任务名>/_SUCCESS;archive → <日期>/<任务名>.tar.gz 存在。
-func (e *Engine) RunTask(p config.Project, t config.Task, date string) error {
+func (e *Engine) RunTask(p config.Project, t config.Task, date string) (int, error) {
 	if err := e.ensureFingerprint(p, t); err != nil {
-		return err
+		return 0, err
 	}
 	dir := e.dateDir(p, date)
 	if done, _ := e.IsDone(p, t, date); done {
 		e.Log.Info("当日已备份,跳过", "项目", p.ID, "任务", t.Name)
-		return nil
+		return 0, nil
 	}
 	if err := e.ensureDir(dir); err != nil {
-		return err
+		return 0, err
 	}
 	switch t.Mode {
 	case "archive":
 		tmp, err := os.CreateTemp("", "bpxup-*.tar.gz")
 		if err != nil {
-			return err
+			return 0, err
 		}
 		tmpPath := tmp.Name()
 		tmp.Close()
 		defer os.Remove(tmpPath)
 		if err := TarGz(t.Source, tmpPath); err != nil {
-			return fmt.Errorf("打包: %w", err)
+			return 0, fmt.Errorf("打包: %w", err)
 		}
 		st, err := os.Stat(tmpPath)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		remote := dir + "/" + t.Name + ".tar.gz"
 		ok, err := e.remoteSizeMatches(remote, st.Size())
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if !ok { // 已存在且大小一致则跳过(重跑续传),否则上传
 			if err := e.Pan.UploadFile(remote, tmpPath); err != nil {
-				return err
+				return 0, err
 			}
 			// 复核:防 create 假成功
 			if ok, err := e.remoteSizeMatches(remote, st.Size()); err != nil {
-				return err
+				return 0, err
 			} else if !ok {
-				return fmt.Errorf("archive 复核不一致: %s", remote)
+				return 0, fmt.Errorf("archive 复核不一致: %s", remote)
 			}
 		}
 		e.Log.Info("archive 上传完成", "项目", p.ID, "任务", t.Name, "远端", remote)
+		return 1, nil
 	case "raw":
 		uploaded, total, err := e.syncRaw(dir+"/"+t.Name, t.Source)
 		if err != nil {
-			return err
+			return 0, err
 		}
 		if total == 0 {
 			e.Log.Warn("raw 源目录为空,未上传任何文件", "项目", p.ID, "任务", t.Name)
 		}
 		if err := e.markSuccess(dir + "/" + t.Name); err != nil {
-			return err
+			return 0, err
 		}
 		e.Log.Info("raw 上传完成", "项目", p.ID, "任务", t.Name, "文件数", total, "本次上传", uploaded)
+		return total, nil
 	}
-	return nil
+	return 0, nil
 }
 
 // markSuccess 在任务目录(仅 raw 模式调用)上传完成标志。

@@ -53,15 +53,16 @@ func Run(cfg *config.Config, eng *backup.Engine, log *slog.Logger, notif *notify
 				}
 				st.attempts++
 				log.Info("开始备份", "任务", key, "尝试", st.attempts, "共", cfg.Retry.MaxAttempts)
-				if err := eng.RunTask(*p, *t, today); err != nil {
+				_, runErr := eng.RunTask(*p, *t, today)
+				if runErr != nil {
 					if st.attempts >= cfg.Retry.MaxAttempts {
 						log.Error("备份重试耗尽,当日放弃,等待人工干预",
-							"任务", key, "尝试", st.attempts, "err", err)
-						notif.Failure(p.ID, t.Name, st.attempts, err.Error())
+							"任务", key, "尝试", st.attempts, "err", runErr)
+						notif.Failure(p.ID, t.Name, st.attempts, runErr.Error())
 						st.givenUp = today
 					} else {
 						next := now.Add(time.Duration(cfg.Retry.DaemonInterval))
-						log.Error("备份失败,稍后重试", "任务", key, "下次", next.Format("15:04:05"), "err", err)
+						log.Error("备份失败,稍后重试", "任务", key, "下次", next.Format("15:04:05"), "err", runErr)
 						st.nextRetry = next
 					}
 					continue

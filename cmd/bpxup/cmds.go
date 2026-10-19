@@ -106,8 +106,10 @@ func cmdRun(args []string) error {
 				continue
 			}
 			matched++
+			files := 0
 			runErr := retry.Do(cfg.Retry.MaxAttempts, time.Duration(cfg.Retry.Interval), func() error {
-				err := eng.RunTask(*p, *t, date)
+				var err error
+				files, err = eng.RunTask(*p, *t, date)
 				if err != nil {
 					log.Warn("备份失败", "项目", p.ID, "任务", t.Name, "err", err)
 				}
@@ -123,6 +125,7 @@ func cmdRun(args []string) error {
 			if err := eng.Cleanup(*p, *t); err != nil {
 				log.Error("清理失败", "项目", p.ID, "任务", t.Name, "err", err)
 			}
+			notif.Success(p.ID, t.Name, files)
 		}
 	}
 	if matched == 0 {

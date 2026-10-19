@@ -28,7 +28,7 @@ release: dist
 #   - 产物包名 bpxup-<os>-<arch>.tar.gz|.zip,包内统一 bpxup(.exe)
 #   - 仅允许在干净工作区发布;重发同一版本需先删 GitHub Release 与远端 tag
 publish:
-	@test "$(VERSION)" != "dev" || { echo "用法: make publish VERSION=x.y.z"; exit 1; }
+	@echo "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "必须显式传入语义化版本,用法: make publish VERSION=x.y.z(不接受 git describe 的 v 前缀或开发态后缀)"; exit 1; }
 	@git diff --quiet && git diff --cached --quiet || { echo "工作区有未提交改动,先提交"; exit 1; }
 	git tag v$(VERSION)
 	git push origin v$(VERSION)

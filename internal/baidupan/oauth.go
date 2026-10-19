@@ -3,7 +3,6 @@ package baidupan
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -74,7 +73,7 @@ func (c *Client) Login() error {
 		"scope":         {"basic,netdisk"},
 		"response_type": {"device_code"},
 	}
-	resp, err := http.PostForm("https://openapi.baidu.com/oauth/2.0/device/code", q)
+	resp, err := c.httpClient().PostForm("https://openapi.baidu.com/oauth/2.0/device/code", q)
 	if err != nil {
 		return fmt.Errorf("获取设备码失败: %w", err)
 	}
@@ -110,7 +109,7 @@ func (c *Client) Login() error {
 			"client_id":     {c.AppKey},
 			"client_secret": {c.SecretKey},
 		}
-		tr, err := http.PostForm("https://openapi.baidu.com/oauth/2.0/token", q)
+		tr, err := c.httpClient().PostForm("https://openapi.baidu.com/oauth/2.0/token", q)
 		if err != nil {
 			continue
 		}
@@ -153,7 +152,7 @@ func (c *Client) EnsureToken() error {
 		"client_id":     {c.AppKey},
 		"client_secret": {c.SecretKey},
 	}
-	resp, err := http.PostForm("https://openapi.baidu.com/oauth/2.0/token", q)
+	resp, err := c.httpClient().PostForm("https://openapi.baidu.com/oauth/2.0/token", q)
 	if err != nil {
 		return fmt.Errorf("刷新 token 失败: %w", err)
 	}

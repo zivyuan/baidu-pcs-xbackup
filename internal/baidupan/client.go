@@ -32,6 +32,14 @@ func New(appKey, secretKey, tokenFile string) *Client {
 	}
 }
 
+// httpClient 返回共享 HTTP 客户端;测试直接构造 Client{} 时惰性补默认值。
+func (c *Client) httpClient() *http.Client {
+	if c.HTTP == nil {
+		c.HTTP = &http.Client{Timeout: 120 * time.Second}
+	}
+	return c.HTTP
+}
+
 // apiError 统一携带百度 errno。
 type apiError struct {
 	API   string

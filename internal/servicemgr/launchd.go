@@ -3,9 +3,12 @@
 package servicemgr
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -36,8 +39,18 @@ func runCmd(name string, args ...string) (string, error) {
 	return string(out), err
 }
 
+// loaded 判断 job 已加载且有进程在运行:launchctl list 输出首列为 PID,
+// "-" 表示已加载但无进程,视为未运行。
 func loaded() bool {
-	return exec.Command("launchctl", "list", label).Run() == nil
+	var stderr bytes.Buffer
+	cmd := exec.Command("launchctl", "list", label)
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+	fields := strings.Fields(strings.SplitN(string(out), "\n", 2)[0])
+	return len(fields) > 0 && fields[0] != "-"
 }
 
 func ensure(cfgPath string) (string, error) {
@@ -80,9 +93,10 @@ func ensure(cfgPath string) (string, error) {
 
 func stop() error {
 	if _, err := os.Stat(plistPath); err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
-	if _, err := runCmd("launchctl", "unload", "-w", plistPath); err != nil {
+	// 不带 -w:Stop 后仍保持开机自启,不持久化 Disabled
+	if _, err := runCmd("launchctl", "unload", plistPath); err != nil {
 		return fmt.Errorf("停止服务: %w", err)
 	}
 	return nil
@@ -90,7 +104,7 @@ func stop() error {
 
 func uninstall() error {
 	if _, err := os.Stat(plistPath); err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
 	runCmd("launchctl", "unload", "-w", plistPath)
 	return os.Remove(plistPath)

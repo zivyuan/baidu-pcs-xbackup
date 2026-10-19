@@ -3,6 +3,7 @@
 package servicemgr
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -65,6 +66,8 @@ func ensure(cfgPath string) (string, error) {
 		if existed {
 			os.WriteFile(unitPath, old, 0o644)
 		} else {
+			// 新建分支:enable 已写入 wants 悬空符号链接,先取消再删 unit
+			runCmd("systemctl", "disable", "bpxup")
 			os.Remove(unitPath)
 		}
 		runCmd("systemctl", "daemon-reload")
@@ -97,7 +100,7 @@ func ensure(cfgPath string) (string, error) {
 
 func stop() error {
 	if _, err := os.Stat(unitPath); err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
 	if _, err := runCmd("systemctl", "stop", "bpxup"); err != nil {
 		return fmt.Errorf("停止服务: %w", err)
@@ -107,7 +110,7 @@ func stop() error {
 
 func uninstall() error {
 	if _, err := os.Stat(unitPath); err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
 	runCmd("systemctl", "disable", "--now", "bpxup")
 	if err := os.Remove(unitPath); err != nil {

@@ -3,6 +3,7 @@
 package servicemgr
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -55,15 +56,30 @@ func ensure(cfgPath string) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		match := strings.HasSuffix(c.BinaryPathName, want)
-		st, _ := s.Query()
+		st, err := s.Query()
+		if err != nil {
+			return "", fmt.Errorf("查询服务状态: %w", err)
+		}
+		// 期望的完整命令;SCM 存储的 BinaryPathName 可能带引号,比较时两边都去掉首尾引号
+		expected := `"` + exe + `" ` + want
+		match := strings.Trim(c.BinaryPathName, `"`) == strings.Trim(expected, `"`)
 		if match && st.State == svc.Running {
 			return "服务已在运行", nil
 		}
 		if !match {
-			c.BinaryPathName = `"` + exe + `" ` + want
+			c.BinaryPathName = expected
 			if err := s.UpdateConfig(c); err != nil {
 				return "", fmt.Errorf("更新服务配置: %w", err)
+			}
+			if st.State == svc.Running {
+				// 配置已变更,重启使新配置生效
+				if _, err := s.Control(svc.Stop); err != nil {
+					return "", fmt.Errorf("停止服务: %w", err)
+				}
+				if err := waitState(s, svc.Stopped, 60*time.Second); err != nil {
+					return "", err
+				}
+				st.State = svc.Stopped
 			}
 		}
 		if st.State != svc.Running {
@@ -119,7 +135,7 @@ func stop() error {
 	defer m.Disconnect()
 	s, err := m.OpenService(svcName)
 	if err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
 	defer s.Close()
 	if _, err := s.Control(svc.Stop); err != nil {
@@ -136,7 +152,7 @@ func uninstall() error {
 	defer m.Disconnect()
 	s, err := m.OpenService(svcName)
 	if err != nil {
-		return fmt.Errorf("服务未注册")
+		return errors.New("服务未注册")
 	}
 	defer s.Close()
 	_ = eventlog.Remove(svcName)

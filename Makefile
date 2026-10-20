@@ -6,8 +6,9 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 build:
 	go build -ldflags '$(LDFLAGS)' -o $(BINARY) ./cmd/bpxup
 
+# 先清空 dist,防止历史产物(含旧 SHA256SUMS)被 dist/* 通配误传
 dist:
-	mkdir -p dist
+	rm -rf dist && mkdir -p dist
 	CGO_ENABLED=0 GOOS=darwin  GOARCH=arm64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)-darwin-arm64 ./cmd/bpxup
 	CGO_ENABLED=0 GOOS=darwin  GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)-darwin-amd64 ./cmd/bpxup
 	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build -ldflags '$(LDFLAGS)' -o dist/$(BINARY)-linux-amd64 ./cmd/bpxup
@@ -21,6 +22,7 @@ release: dist
 	cd dist && cp $(BINARY)-linux-amd64 $(BINARY) && tar czf $(BINARY)-linux-amd64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-linux-amd64
 	cd dist && cp $(BINARY)-linux-arm64 $(BINARY) && tar czf $(BINARY)-linux-arm64.tar.gz $(BINARY) && rm $(BINARY) $(BINARY)-linux-arm64
 	cd dist && cp $(BINARY)-windows-amd64.exe $(BINARY).exe && zip -q $(BINARY)-windows-amd64.zip $(BINARY).exe && rm $(BINARY).exe $(BINARY)-windows-amd64.exe
+	cd dist && shasum -a 256 $(BINARY)-* > SHA256SUMS
 
 # 一键发布:校验 → 打 tag 推送 → 五平台打包 → 创建 GitHub Release。
 # 发布规范(固化):

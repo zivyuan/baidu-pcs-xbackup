@@ -1,0 +1,28 @@
+name: Release
+
+# 推送 vX.Y.Z tag 触发:CI 干净环境构建五平台产物并创建 GitHub Release,
+# 本地不再执行构建发布(防止环境差异/dist 残留)
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: write # 创建 Release 与上传资产
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Build & package
+        run: make release VERSION=${GITHUB_REF_NAME#v}
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes

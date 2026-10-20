@@ -110,7 +110,7 @@ make release  # dist + 打包压缩
 make publish VERSION=0.1.0
 ```
 
-一键完成:打 `vX.Y.Z` tag 推送 → 五平台打包 → 创建 GitHub Release。
+一键完成:打 `vX.Y.Z` tag 推送 → GitHub Actions 自动五平台打包 → 创建 GitHub Release(含 SHA256SUMS),进度见 Actions 页面。
 规范:版本号语义化;产物包名 `bpxup-<os>-<arch>.tar.gz|.zip`,**包内统一为 `bpxup`(.exe),解压即用**;重发同一版本需先删 GitHub Release 与远端 tag。
 
 ## 注意事项

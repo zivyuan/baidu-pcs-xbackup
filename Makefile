@@ -24,17 +24,16 @@ release: dist
 	cd dist && cp $(BINARY)-windows-amd64.exe $(BINARY).exe && zip -q $(BINARY)-windows-amd64.zip $(BINARY).exe && rm $(BINARY).exe $(BINARY)-windows-amd64.exe
 	cd dist && shasum -a 256 $(BINARY)-* > SHA256SUMS
 
-# 一键发布:校验 → 打 tag 推送 → 五平台打包 → 创建 GitHub Release。
+# 一键发布:校验 → 打 tag 推送;构建与创建 Release 由 .github/workflows/release.yml 接管。
 # 发布规范(固化):
 #   - 版本号语义化 x.y.z,tag 格式 vX.Y.Z,与二进制内嵌 version 一致
-#   - 产物包名 bpxup-<os>-<arch>.tar.gz|.zip,包内统一 bpxup(.exe)
+#   - 产物包名 bpxup-<os>-<arch>.tar.gz|.zip,包内统一 bpxup(.exe),附 SHA256SUMS
 #   - 仅允许在干净工作区发布;重发同一版本需先删 GitHub Release 与远端 tag
 publish:
 	@echo "$(VERSION)" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$$' || { echo "必须显式传入语义化版本,用法: make publish VERSION=x.y.z(不接受 git describe 的 v 前缀或开发态后缀)"; exit 1; }
 	@git diff --quiet && git diff --cached --quiet || { echo "工作区有未提交改动,先提交"; exit 1; }
 	git tag v$(VERSION)
 	git push origin v$(VERSION)
-	$(MAKE) release VERSION=$(VERSION)
-	gh release create v$(VERSION) dist/* --title "v$(VERSION)" --generate-notes
+	@echo "tag v$(VERSION) 已推送,GitHub Actions 构建中: https://github.com/zivyuan/baidu-pcs-xbackup/actions"
 
 .PHONY: build dist release publish
